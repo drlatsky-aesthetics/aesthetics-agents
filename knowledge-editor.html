@@ -1,0 +1,1496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Treasury · Knowledge Editor</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f0f0e;--s1:#181716;--s2:#222120;--s3:#2a2926;--s4:#3a3735;
+  --gold:#C9A94A;--golddim:rgba(201,169,74,.15);--goldring:rgba(201,169,74,.35);
+  --tx:#e8e4dc;--dm:#8a8780;--mu:#4a4640;
+  --red:#ef4444;--green:#4ade80;
+}
+body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:14px;line-height:1.5;min-height:100vh}
+
+/* HEADER */
+.hdr{background:var(--s1);border-bottom:1px solid var(--s3);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.hdr-brand{display:flex;align-items:center;gap:12px}
+.hdr-logo{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);font-weight:700}
+.hdr-title{font-size:13px;color:var(--dm)}
+.hdr-actions{display:flex;gap:8px;align-items:center}
+.hdr-saved{font-size:11px;color:var(--green);opacity:0;transition:opacity .4s}
+.hdr-saved.show{opacity:1}
+
+/* BUTTONS */
+.btn{border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;padding:8px 16px;transition:opacity .15s}
+.btn:hover{opacity:.82}.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-gold{background:var(--gold);color:#0f0f0e}
+.btn-sec{background:var(--s2);border:1px solid var(--s3);color:var(--tx)}
+.btn-del{background:transparent;border:1px solid rgba(239,68,68,.3);color:var(--red)}
+.btn-ghost{background:transparent;color:var(--dm);padding:6px 10px}
+.btn-sm{padding:5px 12px;font-size:12px;border-radius:6px}
+
+/* NAV */
+.nav{background:var(--s1);border-bottom:1px solid var(--s3);padding:0 24px;display:flex;gap:2px;overflow-x:auto}
+.nav::-webkit-scrollbar{height:0}
+.nav-tab{padding:12px 16px;font-size:13px;color:var(--dm);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:color .15s,border-color .15s;user-select:none}
+.nav-tab:hover{color:var(--tx)}
+.nav-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+.nbadge{display:inline-flex;align-items:center;justify-content:center;background:var(--s3);color:var(--dm);border-radius:10px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:6px;min-width:18px}
+.nav-tab.active .nbadge{background:var(--golddim);color:var(--gold)}
+
+/* MAIN */
+.main{padding:24px;max-width:1200px;margin:0 auto}
+.sec-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;gap:12px}
+.sec-title{font-size:20px;font-weight:600}
+.sec-sub{font-size:13px;color:var(--dm);margin-top:3px}
+.sec-hdr-btns{display:flex;gap:8px;align-items:center;flex-shrink:0}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--s3)}
+table{width:100%;border-collapse:collapse}
+thead th{background:var(--s2);color:var(--dm);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:10px 14px;text-align:left;white-space:nowrap}
+tbody tr{border-top:1px solid var(--s3)}
+tbody tr:hover{background:rgba(255,255,255,.02)}
+td{padding:10px 14px;vertical-align:middle}
+.td-trunc{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.td-price{color:var(--gold);font-weight:600;white-space:nowrap}
+.td-dim{color:var(--dm);font-size:12px}
+.td-acts{display:flex;gap:6px;justify-content:flex-end}
+
+/* CARDS */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.card{background:var(--s1);border:1px solid var(--s3);border-radius:12px;padding:18px;position:relative}
+.card-name{font-size:15px;font-weight:600;margin-bottom:3px}
+.card-role{font-size:12px;color:var(--gold);font-weight:600;margin-bottom:10px}
+.card-body{font-size:13px;color:var(--dm);line-height:1.6}
+.card-acts{display:flex;gap:6px;margin-top:14px}
+
+/* CLINIC FORM */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.fg{display:flex;flex-direction:column;gap:6px}
+.fg.full{grid-column:1/-1}
+.flabel{font-size:11px;color:var(--dm);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.finput{background:var(--s2);border:1px solid var(--s3);border-radius:8px;color:var(--tx);font-size:13px;padding:9px 12px;font-family:inherit;outline:none;transition:border-color .15s;width:100%}
+.finput:focus{border-color:var(--gold)}
+.ftextarea{resize:vertical;min-height:72px;line-height:1.5}
+
+/* FILTERS */
+.filter-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.fbtn{padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--s3);background:var(--s2);color:var(--dm);transition:all .15s;font-family:inherit}
+.fbtn:hover{color:var(--tx)}
+.fbtn.on{background:var(--gold);border-color:var(--gold);color:#0f0f0e}
+
+/* BRAND PILL */
+.bpill{display:inline-flex;align-items:center;background:var(--golddim);color:var(--gold);border-radius:20px;font-size:11px;font-weight:700;padding:2px 10px;white-space:nowrap;margin-top:3px}
+
+/* FAQ */
+.faq-item{background:var(--s1);border:1px solid var(--s3);border-radius:10px;padding:16px 18px;margin-bottom:10px}
+.faq-q{font-size:14px;font-weight:600;margin-bottom:8px}
+.faq-a{font-size:13px;color:var(--dm);line-height:1.6}
+.faq-acts{display:flex;gap:6px;margin-top:12px}
+
+/* NOTES */
+.note-item{background:var(--s2);border:1px solid var(--s3);border-radius:8px;padding:14px 16px;margin-bottom:8px;display:flex;gap:12px;align-items:flex-start}
+.note-text{flex:1;font-size:13px;line-height:1.6;color:var(--dm)}
+
+/* ADD ROW */
+.add-row{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border:1px dashed var(--mu);border-radius:8px;color:var(--dm);font-size:13px;cursor:pointer;background:transparent;width:100%;margin-top:12px;transition:all .15s;font-family:inherit}
+.add-row:hover{border-color:var(--gold);color:var(--gold)}
+
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px}
+.modal{background:var(--s1);border:1px solid var(--s3);border-radius:16px;padding:28px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto}
+.modal-wide{max-width:720px}
+.modal-title{font-size:18px;font-weight:600;margin-bottom:20px}
+.modal-fields{display:flex;flex-direction:column;gap:14px}
+.modal-footer{display:flex;gap:10px;margin-top:24px;justify-content:flex-end}
+
+/* PRICING EDITOR */
+.pe-wrap{background:var(--s2);border:1px solid var(--s3);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:0}
+.pe-section-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.pe-section-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gold)}
+.pe-legacy{background:var(--s3);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--dm);line-height:1.5}
+.pe-legacy-label{color:var(--gold);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:3px}
+.pe-legacy-hint{font-size:11px;color:var(--mu);margin-top:3px}
+.pe-inp{padding:6px 9px;font-size:12px;border-radius:6px}
+.pe-inp-num{width:80px}
+.pe-inp-sel{cursor:pointer}
+.pe-empty{text-align:center;padding:16px;color:var(--mu);font-size:12px;font-style:italic}
+.pe-divider{height:1px;background:var(--s3);margin:14px 0}
+.pe-tbl thead th{font-size:10px;padding:7px 10px;background:var(--bg)}
+.pe-tbl td{padding:5px 8px}
+.pe-tbl tbody tr{border-top:1px solid var(--s3)}
+.pe-tbl tbody tr:first-child{border-top:none}
+.saves-badge{background:rgba(74,222,128,.12);color:var(--green);border-radius:20px;font-size:11px;font-weight:700;padding:2px 8px;white-space:nowrap}
+.pe-pack-divider{height:14px}
+
+/* SKINCARE IMPORT MODAL */
+.import-preview{background:var(--s2);border:1px solid var(--s3);border-radius:8px;padding:12px 14px;max-height:200px;overflow-y:auto;margin:12px 0}
+.import-preview-item{font-size:12px;color:var(--dm);padding:3px 0;border-bottom:1px solid var(--s3)}
+.import-preview-item:last-child{border-bottom:none}
+.import-preview-item strong{color:var(--tx)}
+.import-mode-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
+.import-mode-btn{background:var(--s2);border:2px solid var(--s3);border-radius:10px;padding:14px;cursor:pointer;text-align:center;transition:all .15s;font-family:inherit;color:var(--tx)}
+.import-mode-btn:hover{border-color:var(--gold)}
+.import-mode-btn.selected{border-color:var(--gold);background:var(--golddim)}
+.import-mode-btn .imb-title{font-size:13px;font-weight:700;margin-bottom:3px}
+.import-mode-btn .imb-sub{font-size:11px;color:var(--dm)}
+
+/* EMPTY */
+.empty{text-align:center;padding:60px 20px;color:var(--mu)}
+.empty-ico{font-size:40px;margin-bottom:12px}
+.empty-txt{font-size:14px;color:var(--dm)}
+
+/* DROP ZONE */
+.drop-zone{border:2px dashed var(--mu);border-radius:16px;padding:70px 20px;text-align:center;color:var(--dm);transition:all .2s;cursor:pointer}
+.drop-zone.dov{border-color:var(--gold);color:var(--gold);background:var(--golddim)}
+.dz-ico{font-size:40px;margin-bottom:14px}
+.dz-txt{font-size:16px;font-weight:600;margin-bottom:6px}
+.dz-sub{font-size:13px;color:var(--mu)}
+
+/* PUSH PANEL */
+.push-bar{background:var(--s1);border-bottom:1px solid var(--s3);padding:0 24px;height:44px;display:flex;align-items:center;gap:12px;font-size:12px}
+.push-dot{width:8px;height:8px;border-radius:50%;background:var(--mu);flex-shrink:0;transition:background .3s}
+.push-dot.ready{background:var(--green)}
+.push-dot.pushing{background:var(--gold);animation:pulse 1s infinite}
+.push-dot.error{background:var(--red)}
+.push-url{color:var(--dm);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.push-status{font-size:11px;color:var(--dm);white-space:nowrap}
+.push-status.ok{color:var(--green)}
+.push-status.err{color:var(--red)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* SETTINGS MODAL */
+.settings-field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.pw-wrap{position:relative}
+.pw-wrap .finput{padding-right:40px}
+.pw-eye{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--dm);cursor:pointer;font-size:14px;padding:4px}
+
+/* CHECKLIST */
+.cl-section{margin-bottom:24px}
+.cl-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--gold);margin-bottom:10px}
+.cl-item{display:flex;align-items:flex-start;gap:12px;padding:10px 14px;border-radius:8px;cursor:pointer;transition:background .15s;user-select:none}
+.cl-item:hover{background:rgba(255,255,255,.03)}
+.cl-item.done .cl-label{text-decoration:line-through;color:var(--mu)}
+.cl-check{width:18px;height:18px;border-radius:4px;border:2px solid var(--mu);flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.cl-item.done .cl-check{background:var(--green);border-color:var(--green)}
+.cl-checkmark{color:#000;font-size:11px;font-weight:700;opacity:0;transition:opacity .15s}
+.cl-item.done .cl-checkmark{opacity:1}
+.cl-label{font-size:13px;line-height:1.4}
+.cl-detail{font-size:11px;color:var(--mu);margin-top:3px;font-family:monospace}
+.cl-optional{font-size:10px;color:var(--dm);background:var(--s3);border-radius:10px;padding:1px 7px;margin-left:6px;vertical-align:middle;font-style:italic}
+.cl-progress{background:var(--s2);border:1px solid var(--s3);border-radius:10px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:14px}
+.cl-prog-bar{flex:1;height:6px;background:var(--s3);border-radius:3px;overflow:hidden}
+.cl-prog-fill{height:100%;background:var(--gold);border-radius:3px;transition:width .3s}
+.cl-prog-txt{font-size:12px;color:var(--dm);white-space:nowrap}
+
+/* BRANDING */
+.color-preview{width:36px;height:36px;border-radius:8px;border:2px solid var(--s3);cursor:pointer;flex-shrink:0}
+.color-row{display:flex;align-items:center;gap:10px}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;z-index:2000;background:var(--s2);border:1px solid var(--goldring);color:var(--tx);border-radius:10px;padding:12px 20px;font-size:13px;box-shadow:0 4px 20px rgba(0,0,0,.5);transition:opacity .3s;pointer-events:none}
+.toast.off{opacity:0}
+
+/* PROMO CARD */
+.promo-card{border-color:var(--goldring)!important}
+
+@media(max-width:640px){.form-grid{grid-template-columns:1fr}.main{padding:16px}.hdr-title{display:none}}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-brand">
+    <span class="hdr-logo">Treasury</span>
+    <span class="hdr-title">Knowledge Editor</span>
+  </div>
+  <div class="hdr-actions">
+    <span class="hdr-saved" id="savedMsg">✓ Auto-saved</span>
+    <input type="file" id="fileIn" accept=".csv" style="display:none">
+    <input type="file" id="skincareIn" accept=".csv" style="display:none">
+    <button class="btn btn-sec" onclick="document.getElementById('fileIn').click()">⬆ Import CSV</button>
+    <button class="btn btn-sec" onclick="doExport()">⬇ Export CSV</button>
+    <button class="btn btn-sec" onclick="openSettings()" title="Agent settings" style="padding:8px 12px">⚙</button>
+    <button class="btn btn-gold" id="pushBtn" onclick="doPush()">🚀 Push to Agent</button>
+  </div>
+</div>
+
+<!-- Push status bar -->
+<div class="push-bar" id="pushBar">
+  <div class="push-dot" id="pushDot"></div>
+  <span class="push-url" id="pushUrl">No agent configured — click ⚙ to set up</span>
+  <span class="push-status" id="pushStatus"></span>
+</div>
+
+<div class="nav" id="nav"></div>
+<div class="main" id="main"></div>
+<div class="toast off" id="toast"></div>
+<div id="mc"></div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════
+const blank = () => ({
+  clinic:{ name:'',type:'',location:'',phone:'',email:'',website:'',booking_url:'',hours:'' },
+  staff:[], treatments:[], memberships:[], skincare:[],
+  promotions:[], faqs:[], clinical_notes:[],
+  branding:{ primary_color:'#C9A94A', logo_url:'', secondary_color:'' },
+  checklist:{}
+});
+let db = blank();
+let tab = 'clinic';
+let brandFilter = 'All';
+let hasData = false;
+
+// ══════════════════════════════════════════════════════
+// CSV PARSE
+// ══════════════════════════════════════════════════════
+function parseCSV(txt) {
+  const rows = []; let row = [], cell = '', inQ = false;
+  for (let i = 0; i < txt.length; i++) {
+    const c = txt[i], nx = txt[i+1];
+    if (c === '"') { if (inQ && nx === '"') { cell += '"'; i++; } else inQ = !inQ; }
+    else if (c === ',' && !inQ) { row.push(cell.trim()); cell = ''; }
+    else if ((c === '\n' || c === '\r') && !inQ) {
+      if (c === '\r' && nx === '\n') i++;
+      row.push(cell.trim());
+      if (row.some(f => f)) rows.push(row);
+      row = []; cell = '';
+    } else cell += c;
+  }
+  if (cell || row.length) { row.push(cell.trim()); if (row.some(f => f)) rows.push(row); }
+  return rows;
+}
+
+function importCSV(txt) {
+  const rows = parseCSV(txt);
+  const nd = blank();
+  const byS = {};
+  for (const r of rows) {
+    const s = (r[0] || '').toUpperCase();
+    if (!s || s === 'SECTION') continue;
+    if (!byS[s]) byS[s] = [];
+    byS[s].push({ field: r[1]||'', value: r[2]||'', notes: r[3]||'' });
+  }
+  // Clinic
+  if (byS.CLINIC) for (const r of byS.CLINIC) if (r.field in nd.clinic) nd.clinic[r.field] = r.value;
+
+  // Multi-record sections
+  const SECS = [
+    ['STAFF',     'staff',         'name',     ['name','role','credentials']],
+    ['TREATMENT', 'treatments',    'name',     ['name','category','description','pricing','sessions','downtime']],
+    ['MEMBERSHIP','memberships',   'name',     ['name','price','benefits']],
+    ['SKINCARE',  'skincare',      'brand',    ['brand','product_name','sku','category','concern','price','description','usage']],
+    ['PROMOTION', 'promotions',    'title',    ['title','description','expiry','eligibility']],
+    ['FAQ',       'faqs',          'question', ['question','answer']],
+  ];
+  for (const [key, tgt, delim, fields] of SECS) {
+    if (!byS[key]) continue;
+    let cur = null;
+    for (const r of byS[key]) {
+      if (r.field === delim) { if (cur) nd[tgt].push(cur); cur = Object.fromEntries(fields.map(f=>[f,''])); }
+      if (cur && r.field) cur[r.field] = r.value;
+    }
+    if (cur) nd[tgt].push(cur);
+  }
+  // Ensure treatments have price_items / packages arrays
+  for (const t of nd.treatments) {
+    if (!t.price_items) t.price_items = [];
+    if (!t.packages) t.packages = [];
+  }
+  // Clinical notes
+  if (byS.CLINICAL_NOTES) for (const r of byS.CLINICAL_NOTES) if (r.field === 'notes' && r.value) nd.clinical_notes.push({notes: r.value});
+
+  db = nd; hasData = true; brandFilter = 'All';
+  save(); renderNav(); renderSection();
+  toast('✓ CSV imported — ' + [
+    db.staff.length + ' staff',
+    db.treatments.length + ' treatments',
+    db.skincare.length + ' skincare products',
+  ].join(' · '));
+}
+
+// ══════════════════════════════════════════════════════
+// SKINCARE BULK CSV IMPORT
+// ══════════════════════════════════════════════════════
+let _skincareImportPending = null; // {products:[], mode:'append'|'replace'}
+
+function openSkincareImport() {
+  document.getElementById('skincareIn').click();
+}
+
+
+function parseSkincareImport(txt) {
+  const rows = parseCSV(txt);
+  if (!rows.length) { toast('⚠ Empty file'); return; }
+
+  const products = [];
+  const SC_FIELDS = ['brand','product_name','sku','category','concern','price','description','usage'];
+
+  // Detect format: full knowledge CSV vs skincare-only CSV
+  const firstRow = rows[0].map(c => c.toLowerCase().trim());
+  const isFullKB = firstRow[0] === 'section' || firstRow[0] === '';
+  const isSkincareHeader = firstRow.includes('product_name') || firstRow.includes('brand');
+
+  if (isFullKB) {
+    // Full knowledge CSV — extract SKINCARE rows
+    const byS = {};
+    for (const r of rows) {
+      const s = (r[0] || '').toUpperCase();
+      if (!s || s === 'SECTION') continue;
+      if (!byS[s]) byS[s] = [];
+      byS[s].push({ field: r[1]||'', value: r[2]||'' });
+    }
+    if (!byS.SKINCARE || !byS.SKINCARE.length) { toast('⚠ No SKINCARE rows found in this CSV'); return; }
+    let cur = null;
+    for (const r of byS.SKINCARE) {
+      if (r.field === 'brand') { if (cur) products.push(cur); cur = Object.fromEntries(SC_FIELDS.map(f=>[f,''])); }
+      if (cur && r.field) cur[r.field] = r.value;
+    }
+    if (cur) products.push(cur);
+  } else if (isSkincareHeader) {
+    // Skincare-only CSV with column headers
+    const hdrs = firstRow;
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r.some(c=>c)) continue;
+      const prod = Object.fromEntries(SC_FIELDS.map(f=>[f,'']));
+      hdrs.forEach((h, hi) => { if (h in prod) prod[h] = r[hi] || ''; });
+      products.push(prod);
+    }
+  } else {
+    // Try treating as raw rows: brand,product_name,...
+    for (const r of rows) {
+      if (!r.some(c=>c)) continue;
+      const prod = Object.fromEntries(SC_FIELDS.map((f,i)=>[f, r[i]||'']));
+      if (prod.brand || prod.product_name) products.push(prod);
+    }
+  }
+
+  if (!products.length) { toast('⚠ No products detected — check CSV format'); return; }
+
+  _skincareImportPending = { products, mode: 'append' };
+  _renderSkincareImportModal();
+}
+
+function _renderSkincareImportModal() {
+  const {products, mode} = _skincareImportPending;
+  const brands = [...new Set(products.map(p=>p.brand).filter(Boolean))];
+  const preview = products.slice(0,12).map(p =>
+    `<div class="import-preview-item"><strong>${h(p.product_name||'—')}</strong> · ${h(p.brand||'—')} · ${p.price?h(p.price):'no price'}</div>`
+  ).join('') + (products.length > 12 ? `<div class="import-preview-item" style="color:var(--mu)">+ ${products.length-12} more…</div>` : '');
+
+  document.getElementById('mc').innerHTML = `
+    <div class="overlay" onclick="if(event.target===this)closeMod()">
+      <div class="modal">
+        <div class="modal-title">Import Skincare Products</div>
+        <div style="font-size:13px;color:var(--dm);margin-bottom:4px">Found <strong style="color:var(--tx)">${products.length} product${products.length!==1?'s':''}</strong> from ${brands.length} brand${brands.length!==1?'s':''}: ${brands.map(b=>`<span style="color:var(--gold)">${h(b)}</span>`).join(', ')}</div>
+        <div class="import-preview">${preview}</div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--dm);margin-bottom:8px">Import Mode</div>
+        <div class="import-mode-btns">
+          <button class="import-mode-btn ${mode==='append'?'selected':''}" onclick="_setImportMode('append')">
+            <div class="imb-title">Append</div>
+            <div class="imb-sub">Add to your ${db.skincare.length} existing products</div>
+          </button>
+          <button class="import-mode-btn ${mode==='replace'?'selected':''}" onclick="_setImportMode('replace')">
+            <div class="imb-title">Replace All</div>
+            <div class="imb-sub">Remove existing ${db.skincare.length} products, use only these ${products.length}</div>
+          </button>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-sec" onclick="closeMod()">Cancel</button>
+          <button class="btn btn-gold" onclick="confirmSkincareImport()">Import ${products.length} Products</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function _setImportMode(mode) {
+  _skincareImportPending.mode = mode;
+  _renderSkincareImportModal();
+}
+
+function confirmSkincareImport() {
+  const {products, mode} = _skincareImportPending;
+  if (mode === 'replace') {
+    db.skincare = products;
+  } else {
+    db.skincare.push(...products);
+  }
+  _skincareImportPending = null;
+  closeMod(); save(); renderNav(); renderSection();
+  toast(`✓ ${mode==='replace'?'Replaced with':'Added'} ${products.length} products`);
+}
+
+// ══════════════════════════════════════════════════════
+// CSV EXPORT
+// ══════════════════════════════════════════════════════
+function esc(v){ if(!v) return ''; v=String(v); return (v.includes(',')||v.includes('"')||v.includes('\n'))?'"'+v.replace(/"/g,'""')+'"':v; }
+function csvRow(...c){ return c.map(esc).join(','); }
+
+// Serialize structured pricing to string
+function pricingString(t) {
+  const parts = [];
+  if (t.price_items && t.price_items.length) {
+    for (const r of t.price_items) {
+      if (!r.price && !r.label) continue;
+      const unitStr = r.unit === 'flat' ? '' : r.unit ? '/'+r.unit : '/session';
+      const lbl = r.label ? r.label + ' ' : '';
+      parts.push(`${lbl}$${r.price}${unitStr}`.trim());
+    }
+  }
+  if (t.packages && t.packages.length) {
+    for (const p of t.packages) {
+      if (!p.total) continue;
+      const lbl = p.label || ('pkg/' + (p.sessions || '?'));
+      parts.push(`${lbl} $${p.total}`);
+    }
+  }
+  return parts.length ? parts.join(' | ') : (t.pricing || '');
+}
+
+function doExport() {
+  const L = [
+    csvRow('SECTION','FIELD','VALUE','NOTES'),
+    csvRow('','','','Fill in the VALUE column. Upload this CSV to the onboard wizard Import tab.'),
+    '',
+  ];
+  // Clinic
+  for (const [f,v] of Object.entries(db.clinic)) L.push(csvRow('CLINIC',f,v,''));
+  L.push('');
+  // Staff
+  for (const s of db.staff) { L.push(csvRow('STAFF','name',s.name,'')); L.push(csvRow('STAFF','role',s.role,'')); L.push(csvRow('STAFF','credentials',s.credentials,'')); L.push(''); }
+  // Treatments — serialize structured pricing to string
+  for (const t of db.treatments) {
+    const pricing = pricingString(t);
+    L.push(csvRow('TREATMENT','name',t.name,''));
+    L.push(csvRow('TREATMENT','category',t.category,''));
+    L.push(csvRow('TREATMENT','description',t.description,''));
+    L.push(csvRow('TREATMENT','pricing',pricing,''));
+    L.push(csvRow('TREATMENT','sessions',t.sessions,''));
+    L.push(csvRow('TREATMENT','downtime',t.downtime,''));
+    L.push('');
+  }
+  // Memberships
+  for (const m of db.memberships) { ['name','price','benefits'].forEach(f=>L.push(csvRow('MEMBERSHIP',f,m[f],''))); L.push(''); }
+  // Skincare
+  for (const s of db.skincare) { ['brand','product_name','sku','category','concern','price','description','usage'].forEach(f=>L.push(csvRow('SKINCARE',f,s[f],''))); L.push(''); }
+  // Promotions
+  for (const p of db.promotions) { ['title','description','expiry','eligibility'].forEach(f=>L.push(csvRow('PROMOTION',f,p[f],''))); L.push(''); }
+  // FAQs
+  for (const q of db.faqs) { L.push(csvRow('FAQ','question',q.question,'')); L.push(csvRow('FAQ','answer',q.answer,'')); L.push(''); }
+  // Clinical notes
+  for (const n of db.clinical_notes) L.push(csvRow('CLINICAL_NOTES','notes',n.notes,''));
+
+  const blob = new Blob([L.join('\n')], {type:'text/csv'});
+  const a = Object.assign(document.createElement('a'), {href:URL.createObjectURL(blob), download:'knowledge-'+new Date().toISOString().slice(0,10)+'.csv'});
+  a.click(); URL.revokeObjectURL(a.href);
+  toast('✓ CSV exported');
+}
+
+// ══════════════════════════════════════════════════════
+// LOCAL STORAGE AUTO-SAVE
+// ══════════════════════════════════════════════════════
+let saveTimer;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(()=>{
+    try { localStorage.setItem('treasury_kb', JSON.stringify(db)); }
+    catch(e){}
+    const el = document.getElementById('savedMsg');
+    el.classList.add('show');
+    setTimeout(()=>el.classList.remove('show'), 2000);
+  }, 500);
+}
+
+// ══════════════════════════════════════════════════════
+// NAV
+// ══════════════════════════════════════════════════════
+const TABS = [
+  {id:'clinic',        label:'Clinic Info',    ico:'🏥', cnt:()=>1},
+  {id:'staff',         label:'Staff',          ico:'👥', cnt:()=>db.staff.length},
+  {id:'treatments',    label:'Treatments',     ico:'💆', cnt:()=>db.treatments.length},
+  {id:'memberships',   label:'Memberships',    ico:'💳', cnt:()=>db.memberships.length},
+  {id:'skincare',      label:'Skincare',       ico:'🧴', cnt:()=>db.skincare.length},
+  {id:'promotions',    label:'Promotions',     ico:'🎁', cnt:()=>db.promotions.length},
+  {id:'faqs',          label:'FAQ',            ico:'❓', cnt:()=>db.faqs.length},
+  {id:'clinical_notes',label:'Clinical Notes', ico:'📋', cnt:()=>db.clinical_notes.length},
+  {id:'branding',      label:'Branding',       ico:'🎨', cnt:()=>1},
+  {id:'setup',         label:'Setup',          ico:'✅', cnt:()=>{
+    const items = CHECKLIST.flatMap(s=>s.items);
+    const done = items.filter(i=>(db.checklist||{})[i.id]).length;
+    return `${done}/${items.length}`;
+  }},
+];
+function renderNav() {
+  document.getElementById('nav').innerHTML = TABS.map(t=>`
+    <div class="nav-tab ${tab===t.id?'active':''}" onclick="setTab('${t.id}')">
+      ${t.ico} ${t.label}<span class="nbadge">${t.cnt()}</span>
+    </div>`).join('');
+}
+function setTab(id){ tab=id; renderNav(); renderSection(); }
+
+// ══════════════════════════════════════════════════════
+// HTML HELPERS
+// ══════════════════════════════════════════════════════
+function h(s){ return s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ══════════════════════════════════════════════════════
+// SECTION RENDERERS
+// ══════════════════════════════════════════════════════
+function renderSection() {
+  const el = document.getElementById('main');
+  const fn = {clinic:rClinic,staff:rStaff,treatments:rTreatments,memberships:rMemberships,skincare:rSkincare,promotions:rPromotions,faqs:rFAQs,clinical_notes:rNotes,branding:rBranding,setup:rSetup};
+  el.innerHTML = (fn[tab]||rClinic)();
+}
+
+// ─── CLINIC ───────────────────────────────────────────
+function field(label,key,ph='',full=false,textarea=false){
+  return `<div class="fg ${full?'full':''}">
+    <label class="flabel">${label}</label>
+    ${textarea
+      ? `<textarea class="finput ftextarea" oninput="db.clinic['${key}']=this.value;save()" placeholder="${h(ph)}">${h(db.clinic[key])}</textarea>`
+      : `<input class="finput" value="${h(db.clinic[key])}" placeholder="${h(ph)}" oninput="db.clinic['${key}']=this.value;save()">`
+    }</div>`;
+}
+function rClinic(){
+  return `<div class="sec-hdr"><div><div class="sec-title">Clinic Information</div><div class="sec-sub">Name, address, contact, booking URL and hours</div></div></div>
+  <div style="background:var(--s1);border:1px solid var(--s3);border-radius:12px;padding:24px">
+    <div class="form-grid">
+      ${field('Clinic Name','name','e.g. Treasury Aesthetics',true)}
+      ${field('Clinic Type','type','e.g. Physician-led medical aesthetics')}
+      ${field('Location / Address','location','Street, City, Province, Postal Code',true)}
+      ${field('Phone','phone','(416) 000-0000')}
+      ${field('Email','email','hello@clinic.ca')}
+      ${field('Website','website','https://...')}
+      ${field('Booking URL','booking_url','https://...')}
+      ${field('Hours','hours','Mon–Fri 9am–6pm | Sat 10am–4pm',true)}
+    </div>
+  </div>`;
+}
+
+// ─── STAFF ────────────────────────────────────────────
+function rStaff(){
+  const cards = db.staff.length
+    ? db.staff.map((s,i)=>`<div class="card">
+        <div class="card-name">${h(s.name)||'<span style="color:var(--mu)">No name</span>'}</div>
+        <div class="card-role">${h(s.role)||'—'}</div>
+        <div class="card-body">${s.credentials?`<span style="color:var(--dm);font-size:11px;text-transform:uppercase;letter-spacing:.5px">Credentials</span><br>${h(s.credentials)}`:'<span style="color:var(--mu);font-size:12px">No credentials listed</span>'}</div>
+        <div class="card-acts">
+          <button class="btn btn-sec btn-sm" onclick="openModal('staff',${i})">Edit</button>
+          <button class="btn btn-del btn-sm" onclick="del('staff',${i})">Remove</button>
+        </div></div>`).join('')
+    : `<div class="empty"><div class="empty-ico">👥</div><div class="empty-txt">No staff added yet</div></div>`;
+  return `<div class="sec-hdr"><div><div class="sec-title">Staff Members</div><div class="sec-sub">${db.staff.length} team member${db.staff.length!==1?'s':''}</div></div>
+    <button class="btn btn-gold" onclick="openModal('staff',-1)">+ Add Member</button></div>
+    <div class="card-grid">${cards}</div>`;
+}
+
+// ─── TREATMENTS ───────────────────────────────────────
+function rTreatments(){
+  const rows = db.treatments.map((t,i)=>{
+    const dispPrice = pricingString(t);
+    const hasSt = (t.price_items||[]).length || (t.packages||[]).length;
+    return `<tr>
+      <td><strong>${h(t.name)}</strong><div class="td-dim">${h(t.category)}</div></td>
+      <td class="td-trunc td-price" title="${h(dispPrice)}">${hasSt?'<span title="Structured pricing" style="font-size:10px;color:var(--dm);margin-right:4px">⚙</span>':''}${h(dispPrice)||'—'}</td>
+      <td class="td-dim">${h(t.sessions)||'—'}</td>
+      <td class="td-dim">${h(t.downtime)||'—'}</td>
+      <td><div class="td-acts">
+        <button class="btn btn-sec btn-sm" onclick="openTreatmentModal(${i})">Edit</button>
+        <button class="btn btn-del btn-sm" onclick="del('treatments',${i})">✕</button>
+      </div></td></tr>`;
+  }).join('');
+  return `<div class="sec-hdr"><div><div class="sec-title">Treatments & Devices</div><div class="sec-sub">${db.treatments.length} treatment${db.treatments.length!==1?'s':''}</div></div>
+    <button class="btn btn-gold" onclick="openTreatmentModal(-1)">+ Add Treatment</button></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Treatment</th><th>Pricing</th><th>Sessions</th><th>Downtime</th><th></th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--mu)">No treatments added</td></tr>'}</tbody>
+    </table></div>`;
+}
+
+// ─── MEMBERSHIPS ──────────────────────────────────────
+function rMemberships(){
+  const cards = db.memberships.length
+    ? db.memberships.map((m,i)=>`<div class="card">
+        <div class="card-name">${h(m.name)||'Untitled'}</div>
+        <div class="card-role">${h(m.price)||'—'}</div>
+        <div class="card-body">${h(m.benefits)||'—'}</div>
+        <div class="card-acts">
+          <button class="btn btn-sec btn-sm" onclick="openModal('memberships',${i})">Edit</button>
+          <button class="btn btn-del btn-sm" onclick="del('memberships',${i})">Remove</button>
+        </div></div>`).join('')
+    : `<div class="empty"><div class="empty-ico">💳</div><div class="empty-txt">No memberships added yet</div></div>`;
+  return `<div class="sec-hdr"><div><div class="sec-title">Membership Tiers</div><div class="sec-sub">${db.memberships.length} tier${db.memberships.length!==1?'s':''}</div></div>
+    <button class="btn btn-gold" onclick="openModal('memberships',-1)">+ Add Tier</button></div>
+    <div class="card-grid">${cards}</div>`;
+}
+
+// ─── SKINCARE ─────────────────────────────────────────
+function rSkincare(){
+  const brands = ['All',...new Set(db.skincare.map(s=>s.brand).filter(Boolean))];
+  const filt = brandFilter==='All' ? db.skincare : db.skincare.filter(s=>s.brand===brandFilter);
+  const fbBtns = brands.map(b=>`<button class="fbtn ${brandFilter===b?'on':''}" onclick="setBrand(${JSON.stringify(b)})">${h(b)} (${b==='All'?db.skincare.length:db.skincare.filter(s=>s.brand===b).length})</button>`).join('');
+  const rows = filt.map(s=>{
+    const i = db.skincare.indexOf(s);
+    return `<tr>
+      <td><strong>${h(s.product_name)||'—'}</strong>${brandFilter==='All'?`<div><span class="bpill">${h(s.brand)}</span></div>`:''}</td>
+      <td class="td-dim">${h(s.sku)||'<span style="color:var(--mu)">—</span>'}</td>
+      <td class="td-dim">${h(s.category)||'—'}</td>
+      <td class="td-trunc td-dim" style="max-width:150px" title="${h(s.concern)}">${h(s.concern)||'—'}</td>
+      <td class="td-price">${h(s.price)||'—'}</td>
+      <td class="td-trunc td-dim" style="max-width:150px" title="${h(s.usage)}">${h(s.usage)||'—'}</td>
+      <td><div class="td-acts">
+        <button class="btn btn-sec btn-sm" onclick="openModal('skincare',${i})">Edit</button>
+        <button class="btn btn-del btn-sm" onclick="del('skincare',${i})">✕</button>
+      </div></td></tr>`;
+  }).join('');
+  const brandCount = new Set(db.skincare.map(s=>s.brand).filter(Boolean)).size;
+  return `<div class="sec-hdr">
+    <div><div class="sec-title">Skincare Products</div><div class="sec-sub">${db.skincare.length} products · ${brandCount} brand${brandCount!==1?'s':''}</div></div>
+    <div class="sec-hdr-btns">
+      <button class="btn btn-sec" onclick="openSkincareImport()">📥 Import CSV</button>
+      <button class="btn btn-gold" onclick="openModal('skincare',-1)">+ Add Product</button>
+    </div></div>
+    <div class="filter-row">${fbBtns}</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Product${brandFilter==='All'?' / Brand':''}</th><th>SKU</th><th>Category</th><th>Concern</th><th>Price</th><th>Usage</th><th></th></tr></thead>
+      <tbody>${rows||`<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--mu)">No products in this category</td></tr>`}</tbody>
+    </table></div>`;
+}
+function setBrand(b){ brandFilter=b; renderSection(); }
+
+// ─── PROMOTIONS ───────────────────────────────────────
+function rPromotions(){
+  const cards = db.promotions.length
+    ? db.promotions.map((p,i)=>`<div class="card promo-card">
+        <div class="card-name">${h(p.title)||'Untitled'}</div>
+        <div class="card-role">${p.expiry?'Expires '+h(p.expiry):'No expiry set'}</div>
+        <div class="card-body">${h(p.description)||'—'}${p.eligibility?`<div style="margin-top:8px;font-size:11px;color:var(--mu)">Eligibility: ${h(p.eligibility)}</div>`:''}</div>
+        <div class="card-acts">
+          <button class="btn btn-sec btn-sm" onclick="openModal('promotions',${i})">Edit</button>
+          <button class="btn btn-del btn-sm" onclick="del('promotions',${i})">Remove</button>
+        </div></div>`).join('')
+    : `<div class="empty"><div class="empty-ico">🎁</div><div class="empty-txt">No promotions added yet</div></div>`;
+  return `<div class="sec-hdr"><div><div class="sec-title">Promotions</div><div class="sec-sub">${db.promotions.length} active promotion${db.promotions.length!==1?'s':''}</div></div>
+    <button class="btn btn-gold" onclick="openModal('promotions',-1)">+ Add Promotion</button></div>
+    <div class="card-grid">${cards}</div>`;
+}
+
+// ─── FAQ ──────────────────────────────────────────────
+function rFAQs(){
+  const items = db.faqs.length
+    ? db.faqs.map((f,i)=>`<div class="faq-item">
+        <div class="faq-q">Q: ${h(f.question)||'<span style="color:var(--mu)">No question</span>'}</div>
+        <div class="faq-a">A: ${h(f.answer)||'<span style="color:var(--mu)">No answer</span>'}</div>
+        <div class="faq-acts">
+          <button class="btn btn-sec btn-sm" onclick="openModal('faqs',${i})">Edit</button>
+          <button class="btn btn-del btn-sm" onclick="del('faqs',${i})">Remove</button>
+        </div></div>`).join('')
+    : `<div class="empty"><div class="empty-ico">❓</div><div class="empty-txt">No FAQs yet</div></div>`;
+  return `<div class="sec-hdr"><div><div class="sec-title">Frequently Asked Questions</div><div class="sec-sub">${db.faqs.length} question${db.faqs.length!==1?'s':''}</div></div>
+    <button class="btn btn-gold" onclick="openModal('faqs',-1)">+ Add FAQ</button></div>
+    ${items}`;
+}
+
+// ─── CLINICAL NOTES ───────────────────────────────────
+function rNotes(){
+  const items = db.clinical_notes.length
+    ? db.clinical_notes.map((n,i)=>`<div class="note-item">
+        <div class="note-text">${h(n.notes)}</div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn btn-sec btn-sm" onclick="openModal('clinical_notes',${i})">Edit</button>
+          <button class="btn btn-del btn-sm" onclick="del('clinical_notes',${i})">✕</button>
+        </div></div>`).join('')
+    : `<div class="empty"><div class="empty-ico">📋</div><div class="empty-txt">No clinical notes yet</div></div>`;
+  return `<div class="sec-hdr"><div><div class="sec-title">Clinical Notes & Protocols</div><div class="sec-sub">Contraindications, post-care rules, clinical guidance for the agent</div></div>
+    <button class="btn btn-gold" onclick="openModal('clinical_notes',-1)">+ Add Note</button></div>
+    ${items}`;
+}
+
+// ─── BRANDING ─────────────────────────────────────────
+function rBranding(){
+  const br = db.branding || {primary_color:'#C9A94A',logo_url:'',secondary_color:''};
+  const ensureBr = () => { if (!db.branding) db.branding = {primary_color:'#C9A94A',logo_url:'',secondary_color:''}; };
+  return `<div class="sec-hdr"><div><div class="sec-title">Branding</div><div class="sec-sub">Colors and logo used by the chat widget and admin panel</div></div></div>
+  <div style="background:var(--s1);border:1px solid var(--s3);border-radius:12px;padding:24px;display:flex;flex-direction:column;gap:18px">
+
+    <div class="fg">
+      <label class="flabel">Primary Color</label>
+      <div class="color-row">
+        <div class="color-preview" id="colorPrev" style="background:${h(br.primary_color||'#C9A94A')}" onclick="document.getElementById('colorPicker').click()"></div>
+        <input type="color" id="colorPicker" value="${h(br.primary_color||'#C9A94A')}" style="display:none" oninput="document.getElementById('colorInp').value=this.value;document.getElementById('colorPrev').style.background=this.value">
+        <input class="finput" id="colorInp" value="${h(br.primary_color||'#C9A94A')}" placeholder="#C9A94A" style="width:140px" oninput="document.getElementById('colorPrev').style.background=this.value;document.getElementById('colorPicker').value=this.value">
+        <span style="font-size:12px;color:var(--dm)">Chat widget accent, button, highlights</span>
+      </div>
+    </div>
+
+    <div class="fg">
+      <label class="flabel">Logo URL</label>
+      <input class="finput" id="logoInp" value="${h(br.logo_url||'')}" placeholder="https://your-site.com/logo.png (optional)">
+      <div style="font-size:11px;color:var(--mu);margin-top:3px">Displayed in the chat widget header. Leave empty to use clinic name text.</div>
+    </div>
+
+    <div class="fg">
+      <label class="flabel">Secondary Color <span style="color:var(--mu);font-weight:400">(optional)</span></label>
+      <input class="finput" id="secColorInp" value="${h(br.secondary_color||'')}" placeholder="#1a1a18" style="width:200px">
+    </div>
+
+    <div style="background:var(--s2);border:1px solid var(--s3);border-radius:8px;padding:14px 16px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--dm);margin-bottom:8px">Environment Variables</div>
+      <div style="font-size:12px;color:var(--dm);line-height:2;font-family:monospace">
+        NEXT_PUBLIC_PRIMARY_COLOR = ${h(br.primary_color||'#C9A94A')}<br>
+        ${br.logo_url?`NEXT_PUBLIC_LOGO_URL = ${h(br.logo_url)}<br>`:''}
+        NEXT_PUBLIC_CLINIC_NAME = ${h(db.clinic.name||'Your Clinic Name')}<br>
+        NEXT_PUBLIC_BOOKING_URL = ${h(db.clinic.booking_url||'')}
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end">
+      <button class="btn btn-gold" onclick="saveBranding()">Save Branding</button>
+    </div>
+  </div>`;
+}
+
+function saveBranding() {
+  if (!db.branding) db.branding = {primary_color:'#C9A94A',logo_url:'',secondary_color:''};
+  db.branding.primary_color = document.getElementById('colorInp').value.trim() || '#C9A94A';
+  db.branding.logo_url = document.getElementById('logoInp').value.trim();
+  db.branding.secondary_color = document.getElementById('secColorInp').value.trim();
+  save(); toast('✓ Branding saved');
+}
+
+// ─── SETUP CHECKLIST ──────────────────────────────────
+const CHECKLIST = [
+  { section:'GitHub', items:[
+    {id:'gh-fork',  label:'Fork treasury-agent repo on GitHub', detail:'github.com → Fork → select forked repo'},
+    {id:'gh-clone', label:'Clone repo locally (for running scripts)', detail:'git clone https://github.com/[your-org]/treasury-agent'},
+  ]},
+  { section:'Vercel', items:[
+    {id:'vercel-account',  label:'Create / log in to Vercel account', detail:'vercel.com'},
+    {id:'vercel-project',  label:'Import GitHub repo into Vercel', detail:'Vercel → New Project → Import → select forked repo'},
+    {id:'vercel-blob',     label:'Create Vercel Blob store → Connect to project', detail:'Vercel dashboard → Storage → Create Blob → Connect to project (auto-adds BLOB_READ_WRITE_TOKEN)'},
+    {id:'vercel-initial',  label:'Initial deploy triggered (may fail before env vars — that\'s OK)'},
+  ]},
+  { section:'Environment Variables', items:[
+    {id:'env-anthropic',   label:'ANTHROPIC_API_KEY', detail:'console.anthropic.com → API Keys → Create Key'},
+    {id:'env-knowledge-key',label:'KNOWLEDGE_KEY (32-byte hex)', detail:'node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'},
+    {id:'env-admin-pass',  label:'ADMIN_PASSWORD', detail:'A secure password for admin commands in the chat'},
+    {id:'env-clinic-name', label:'NEXT_PUBLIC_CLINIC_NAME'},
+    {id:'env-color',       label:'NEXT_PUBLIC_PRIMARY_COLOR (e.g. #C9A94A)'},
+    {id:'env-booking',     label:'NEXT_PUBLIC_BOOKING_URL'},
+    {id:'env-logo',        label:'NEXT_PUBLIC_LOGO_URL', optional:true},
+    {id:'env-resend-key',  label:'RESEND_API_KEY', optional:true},
+    {id:'env-resend-from', label:'RESEND_FROM', optional:true},
+    {id:'env-resend-to',   label:'RESEND_TO', optional:true},
+    {id:'env-airtable-pat',label:'AIRTABLE_PAT', optional:true},
+    {id:'env-airtable-base',label:'AIRTABLE_BASE_ID', optional:true},
+    {id:'env-redeploy',    label:'Redeploy after all env vars set'},
+  ]},
+  { section:'Knowledge Base', items:[
+    {id:'kb-clinic-info', label:'Fill out Clinic Info tab'},
+    {id:'kb-treatments',  label:'Add all treatments with structured pricing'},
+    {id:'kb-memberships', label:'Add memberships and tiers'},
+    {id:'kb-skincare',    label:'Add skincare product catalog'},
+    {id:'kb-clinical',    label:'Add clinical notes and protocols'},
+    {id:'kb-branding',    label:'Set branding colors and logo in Branding tab'},
+    {id:'kb-push',        label:'Click 🚀 Push to Agent — changes are live immediately'},
+    {id:'kb-relearn',     label:'Type #relearn in admin chat if agent needs a manual refresh', optional:true},
+  ]},
+  { section:'Testing', items:[
+    {id:'test-chat',       label:'Test full patient conversation at /chat'},
+    {id:'test-pricing',    label:'Verify pricing displays correctly'},
+    {id:'test-treatments', label:'Verify all treatments appear in recommendations'},
+    {id:'test-plan',       label:'Test treatment plan builder'},
+    {id:'test-patient',    label:'Verify patient info capture (name/email) triggers correctly'},
+    {id:'test-airtable',   label:'Verify Airtable logging (if enabled)', optional:true},
+    {id:'test-email',      label:'Verify Resend email notification on finalized consult (if enabled)', optional:true},
+  ]},
+  { section:'Website Integration', items:[
+    {id:'web-embed',  label:'Add embed.js to clinic website', detail:"<script src='https://[vercel-url]/embed.js'><\/script> before <\/body>"},
+    {id:'web-button', label:'Verify chat button appears on website'},
+    {id:'web-click',  label:'Test click-to-open from website'},
+    {id:'web-domain', label:'Configure custom domain', optional:true, detail:'Vercel → Project → Settings → Domains'},
+  ]},
+  { section:'Handoff', items:[
+    {id:'handoff-admin',   label:'Show clinic owner how to use #admin commands to update knowledge'},
+    {id:'handoff-editor',  label:'Share Knowledge Editor HTML file with clinic owner'},
+    {id:'handoff-logs',    label:'Show clinic owner how to view conversation logs (Airtable / Sheets)'},
+    {id:'handoff-billing', label:'Confirm monthly billing setup'},
+  ]},
+];
+
+function rSetup(){
+  const allItems = CHECKLIST.flatMap(s=>s.items);
+  const total = allItems.length;
+  const required = allItems.filter(i=>!i.optional);
+  const done = allItems.filter(i=>(db.checklist||{})[i.id]).length;
+  const reqDone = required.filter(i=>(db.checklist||{})[i.id]).length;
+  const pct = total ? Math.round(done/total*100) : 0;
+
+  const sections = CHECKLIST.map(s=>`
+    <div class="cl-section">
+      <div class="cl-section-title">${s.section}</div>
+      ${s.items.map(item=>{
+        const checked = !!(db.checklist||{})[item.id];
+        return `<div class="cl-item ${checked?'done':''}" onclick="toggleCheck('${item.id}')">
+          <div class="cl-check"><span class="cl-checkmark">✓</span></div>
+          <div style="flex:1">
+            <div class="cl-label">${h(item.label)}${item.optional?'<span class="cl-optional">optional</span>':''}</div>
+            ${item.detail?`<div class="cl-detail">${h(item.detail)}</div>`:''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+
+  return `<div class="sec-hdr">
+    <div><div class="sec-title">Setup Checklist</div><div class="sec-sub">Track your deployment progress</div></div>
+    <button class="btn btn-sec btn-sm" onclick="resetChecklist()">Reset</button>
+  </div>
+  <div class="cl-progress">
+    <div class="cl-prog-bar"><div class="cl-prog-fill" style="width:${pct}%"></div></div>
+    <span class="cl-prog-txt">${done}/${total} complete (${reqDone}/${required.length} required)</span>
+  </div>
+  ${sections}`;
+}
+
+function toggleCheck(id) {
+  if (!db.checklist) db.checklist = {};
+  db.checklist[id] = !db.checklist[id];
+  save(); renderNav(); renderSection();
+}
+
+function resetChecklist() {
+  if (!confirm('Reset all checklist items?')) return;
+  db.checklist = {};
+  save(); renderNav(); renderSection();
+  toast('Checklist reset');
+}
+
+// ══════════════════════════════════════════════════════
+// TREATMENT MODAL (custom — structured pricing editor)
+// ══════════════════════════════════════════════════════
+let ET = null; // {data:{...}, idx:number}
+
+function openTreatmentModal(idx) {
+  const isNew = idx < 0;
+  const data = isNew
+    ? {name:'',category:'',description:'',pricing:'',price_items:[],packages:[],sessions:'',downtime:''}
+    : JSON.parse(JSON.stringify(db.treatments[idx]));
+  if (!Array.isArray(data.price_items)) data.price_items = [];
+  if (!Array.isArray(data.packages)) data.packages = [];
+  ET = {data, idx};
+  _renderTM();
+}
+
+function _syncTM() {
+  if (!ET) return;
+  const t = ET.data;
+  // Basic fields
+  ['name','category','description','sessions','downtime'].forEach(k=>{
+    const el = document.getElementById('mf_'+k); if (el) t[k] = el.value;
+  });
+  // Price row fields
+  t.price_items.forEach((r,i)=>{
+    const lbl = document.querySelector(`[data-pi="${i}"][data-f="label"]`);
+    const prc = document.querySelector(`[data-pi="${i}"][data-f="price"]`);
+    const unt = document.querySelector(`[data-pi="${i}"][data-f="unit"]`);
+    if (lbl) r.label = lbl.value;
+    if (prc) r.price = prc.value;
+    if (unt) r.unit = unt.value;
+  });
+  // Package fields
+  t.packages.forEach((p,i)=>{
+    const lbl = document.querySelector(`[data-pk="${i}"][data-f="label"]`);
+    const ses = document.querySelector(`[data-pk="${i}"][data-f="sessions"]`);
+    const tot = document.querySelector(`[data-pk="${i}"][data-f="total"]`);
+    if (lbl) p.label = lbl.value;
+    if (ses) p.sessions = ses.value;
+    if (tot) p.total = tot.value;
+  });
+}
+
+function _renderTM() {
+  const {data: t, idx} = ET;
+  const isNew = idx < 0;
+
+  // Session pricing rows
+  const priceRows = t.price_items.length
+    ? t.price_items.map((r,i)=>`<tr>
+        <td><input class="finput pe-inp" data-pi="${i}" data-f="label" value="${h(r.label)}" placeholder="e.g. Full Face" style="width:100%"></td>
+        <td><input class="finput pe-inp pe-inp-num" data-pi="${i}" data-f="price" value="${h(r.price)}" placeholder="400" style="width:80px"></td>
+        <td><select class="finput pe-inp pe-inp-sel" data-pi="${i}" data-f="unit" style="width:120px">
+          <option value="session" ${r.unit==='session'||!r.unit?'selected':''}>/ session</option>
+          <option value="area" ${r.unit==='area'?'selected':''}>/ area</option>
+          <option value="treatment" ${r.unit==='treatment'?'selected':''}>/ treatment</option>
+          <option value="flat" ${r.unit==='flat'?'selected':''}>flat rate</option>
+        </select></td>
+        <td style="width:36px"><button class="btn btn-del btn-sm" onclick="_syncTM();ET.data.price_items.splice(${i},1);_renderTM()" style="padding:4px 8px">✕</button></td>
+      </tr>`).join('')
+    : `<tr><td colspan="4" class="pe-empty">No price lines yet — click + Add Line below</td></tr>`;
+
+  // Package rows
+  const packRows = t.packages.length
+    ? t.packages.map((p,i)=>{
+        const base = parseFloat(String((t.price_items[0]||{}).price||'').replace(/[^0-9.]/g,'')) || 0;
+        const total = parseFloat(String(p.total||'').replace(/[^0-9.]/g,'')) || 0;
+        const sessions = parseInt(p.sessions||'0') || 0;
+        const singles = base * sessions;
+        let savings = '';
+        if (singles > 0 && total > 0 && singles > total) {
+          const saveDol = (singles - total).toFixed(0);
+          const savePct = Math.round((singles - total) / singles * 100);
+          savings = `<span class="saves-badge">saves $${saveDol} (${savePct}%)</span>`;
+        }
+        return `<tr>
+          <td><input class="finput pe-inp" data-pk="${i}" data-f="label" value="${h(p.label)}" placeholder="e.g. pkg/3 full face" style="width:100%"></td>
+          <td><input class="finput pe-inp pe-inp-num" type="number" min="1" data-pk="${i}" data-f="sessions" value="${h(p.sessions)}" placeholder="3" style="width:64px"></td>
+          <td><input class="finput pe-inp pe-inp-num" data-pk="${i}" data-f="total" value="${h(p.total)}" placeholder="1100" style="width:80px"></td>
+          <td style="white-space:nowrap">${savings}</td>
+          <td style="width:36px"><button class="btn btn-del btn-sm" onclick="_syncTM();ET.data.packages.splice(${i},1);_renderTM()" style="padding:4px 8px">✕</button></td>
+        </tr>`;
+      }).join('')
+    : `<tr><td colspan="5" class="pe-empty">No packages yet — click + Add Package below</td></tr>`;
+
+  // Legacy pricing note (if we have an imported pricing string but no structured rows yet)
+  const legacyNote = t.pricing && !t.price_items.length && !t.packages.length
+    ? `<div class="pe-legacy"><span class="pe-legacy-label">Imported pricing string</span>${h(t.pricing)}<div class="pe-legacy-hint">Add structured rows to replace this, or leave empty to keep as-is on export.</div></div>`
+    : '';
+
+  document.getElementById('mc').innerHTML = `
+    <div class="overlay" onclick="if(event.target===this)closeMod()">
+      <div class="modal modal-wide">
+        <div class="modal-title">${isNew ? 'Add Treatment' : 'Edit Treatment'}</div>
+        <div class="modal-fields">
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div class="fg"><label class="flabel">Treatment / Device Name</label>
+              <input class="finput" id="mf_name" value="${h(t.name)}" placeholder="e.g. VirtueRF"></div>
+            <div class="fg"><label class="flabel">Category</label>
+              <input class="finput" id="mf_category" value="${h(t.category)}" placeholder="e.g. RF Microneedling, Laser"></div>
+          </div>
+          <div class="fg"><label class="flabel">Description</label>
+            <textarea class="finput ftextarea" id="mf_description" rows="2" placeholder="Brief clinical description">${h(t.description)}</textarea></div>
+
+          <!-- ── PRICING EDITOR ── -->
+          <div class="pe-wrap">
+            <div class="pe-section-hdr">
+              <span class="pe-section-label">Session Pricing</span>
+              <button class="btn btn-sec btn-sm" onclick="_syncTM();ET.data.price_items.push({label:'',price:'',unit:'session'});_renderTM()">+ Add Line</button>
+            </div>
+            ${legacyNote}
+            <div class="tbl-wrap" style="margin-bottom:0">
+              <table class="pe-tbl">
+                <thead><tr><th style="min-width:140px">Label / Area</th><th>Price ($)</th><th>Unit</th><th></th></tr></thead>
+                <tbody>${priceRows}</tbody>
+              </table>
+            </div>
+
+            <div class="pe-divider"></div>
+
+            <div class="pe-section-hdr">
+              <span class="pe-section-label">Packages & Bundles</span>
+              <button class="btn btn-sec btn-sm" onclick="_syncTM();ET.data.packages.push({label:'',sessions:'',total:''});_renderTM()">+ Add Package</button>
+            </div>
+            <div style="font-size:11px;color:var(--mu);margin-bottom:8px">Savings auto-calculated vs. first price line × session count</div>
+            <div class="tbl-wrap" style="margin-bottom:0">
+              <table class="pe-tbl">
+                <thead><tr><th style="min-width:140px">Package Label</th><th>Sessions</th><th>Total ($)</th><th>Savings</th><th></th></tr></thead>
+                <tbody>${packRows}</tbody>
+              </table>
+            </div>
+          </div>
+          <!-- ── /PRICING EDITOR ── -->
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div class="fg"><label class="flabel">Recommended Sessions</label>
+              <input class="finput" id="mf_sessions" value="${h(t.sessions)}" placeholder="e.g. 3–4 sessions, 4–6 weeks apart"></div>
+            <div class="fg"><label class="flabel">Downtime</label>
+              <input class="finput" id="mf_downtime" value="${h(t.downtime)}" placeholder="e.g. 24–48h redness / Zero"></div>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-sec" onclick="closeMod()">Cancel</button>
+          <button class="btn btn-gold" onclick="saveTreatmentModal(${idx})">${isNew?'Add Treatment':'Save Changes'}</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function saveTreatmentModal(idx) {
+  if (!ET) return;
+  _syncTM();
+  const t = ET.data;
+  // Build pricing string from structured data (keep t.pricing as fallback)
+  if (t.price_items.length || t.packages.length) {
+    t.pricing = pricingString(t);
+  }
+  if (idx < 0) db.treatments.push(t); else db.treatments[idx] = t;
+  ET = null;
+  closeMod(); save(); renderNav(); renderSection();
+  toast(idx < 0 ? '✓ Treatment added' : '✓ Treatment saved');
+}
+
+// ══════════════════════════════════════════════════════
+// GENERIC MODAL (staff, memberships, skincare, etc.)
+// ══════════════════════════════════════════════════════
+const MC = {
+  staff:{
+    title:i=>i<0?'Add Staff Member':'Edit Staff Member',
+    fields:[{k:'name',l:'Full Name',p:'e.g. Dr. Jason Latsky'},{k:'role',l:'Role / Title',p:'e.g. Physician, RN, Technician'},{k:'credentials',l:'Credentials',p:'e.g. MD, RN (optional)'}],
+    def:()=>({name:'',role:'',credentials:''})
+  },
+  memberships:{
+    title:i=>i<0?'Add Membership':'Edit Membership',
+    fields:[{k:'name',l:'Membership Name',p:'e.g. Treasury Essential'},{k:'price',l:'Monthly Price',p:'e.g. $199/month'},{k:'benefits',l:'Benefits',p:'Key benefits, comma-separated',ml:true}],
+    def:()=>({name:'',price:'',benefits:''})
+  },
+  skincare:{
+    title:i=>i<0?'Add Skincare Product':'Edit Skincare Product',
+    fields:[{k:'brand',l:'Brand',p:'e.g. Noon Aesthetics'},{k:'product_name',l:'Product Name',p:'e.g. Halo-Ronic 50ml'},{k:'sku',l:'SKU',p:'Optional'},{k:'category',l:'Category',p:'e.g. Serum, Cleanser, Moisturizer, SPF, Kit'},{k:'concern',l:'Skin Concern',p:'e.g. Hydration / Anti-aging'},{k:'price',l:'Retail Price',p:'e.g. $158'},{k:'description',l:'Description',p:'Product description and key benefits',ml:true},{k:'usage',l:'Usage Instructions',p:'e.g. Morning and evening after cleansing'}],
+    def:()=>({brand:'',product_name:'',sku:'',category:'',concern:'',price:'',description:'',usage:''})
+  },
+  promotions:{
+    title:i=>i<0?'Add Promotion':'Edit Promotion',
+    fields:[{k:'title',l:'Promotion Title',p:'e.g. Summer Special — 20% Off'},{k:'description',l:'Description',p:'Full promotion details',ml:true},{k:'expiry',l:'Expiry Date',p:'e.g. 2026-12-31'},{k:'eligibility',l:'Eligibility',p:'e.g. New patients only'}],
+    def:()=>({title:'',description:'',expiry:'',eligibility:''})
+  },
+  faqs:{
+    title:i=>i<0?'Add FAQ':'Edit FAQ',
+    fields:[{k:'question',l:'Question',p:'e.g. Do you offer consultations?'},{k:'answer',l:'Answer',p:'Clear, helpful answer',ml:true}],
+    def:()=>({question:'',answer:''})
+  },
+  clinical_notes:{
+    title:i=>i<0?'Add Clinical Note':'Edit Clinical Note',
+    fields:[{k:'notes',l:'Note / Protocol',p:'e.g. Contraindications: pregnancy, pacemaker...',ml:true}],
+    def:()=>({notes:''})
+  }
+};
+
+function openModal(sec, idx) {
+  const cfg = MC[sec]; if (!cfg) return;
+  const isNew = idx < 0;
+  const rec = isNew ? cfg.def() : {...db[sec][idx]};
+  const flds = cfg.fields.map(f=>`<div class="fg">
+    <label class="flabel">${f.l}</label>
+    ${f.ml
+      ? `<textarea class="finput ftextarea" id="mf_${f.k}" placeholder="${h(f.p||'')}" rows="3">${h(rec[f.k]||'')}</textarea>`
+      : `<input class="finput" id="mf_${f.k}" value="${h(rec[f.k]||'')}" placeholder="${h(f.p||'')}">`
+    }</div>`).join('');
+  document.getElementById('mc').innerHTML = `
+    <div class="overlay" onclick="if(event.target===this)closeMod()">
+      <div class="modal">
+        <div class="modal-title">${cfg.title(idx)}</div>
+        <div class="modal-fields">${flds}</div>
+        <div class="modal-footer">
+          <button class="btn btn-sec" onclick="closeMod()">Cancel</button>
+          <button class="btn btn-gold" onclick="saveMod('${sec}',${idx})">${isNew?'Add':'Save Changes'}</button>
+        </div>
+      </div>
+    </div>`;
+  setTimeout(()=>{ const el = document.querySelector('.modal .finput'); if(el) el.focus(); }, 50);
+}
+
+function closeMod(){ document.getElementById('mc').innerHTML=''; ET=null; }
+
+function saveMod(sec, idx) {
+  const cfg = MC[sec]; if (!cfg) return;
+  const rec = {};
+  for (const f of cfg.fields) { const el = document.getElementById('mf_'+f.k); rec[f.k] = el ? el.value.trim() : ''; }
+  if (idx < 0) db[sec].push(rec); else db[sec][idx] = rec;
+  closeMod(); save(); renderNav(); renderSection();
+  toast(idx < 0 ? '✓ Record added' : '✓ Changes saved');
+}
+
+function del(sec, idx) {
+  if (!confirm('Remove this record?')) return;
+  db[sec].splice(idx, 1);
+  save(); renderNav(); renderSection();
+  toast('Record removed');
+}
+
+// ══════════════════════════════════════════════════════
+// UTILITIES
+// ══════════════════════════════════════════════════════
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.remove('off');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>el.classList.add('off'), 2800);
+}
+
+// ══════════════════════════════════════════════════════
+// PUSH TO AGENT
+// ══════════════════════════════════════════════════════
+const DEFAULT_AGENT_URL = 'https://treasury-agent.vercel.app';
+
+let agentCfg = {url: '', password: ''};
+
+function loadAgentCfg() {
+  try {
+    const s = localStorage.getItem('treasury_agent_cfg');
+    if (s) agentCfg = {...agentCfg, ...JSON.parse(s)};
+  } catch(e) {}
+  if (!agentCfg.url) agentCfg.url = DEFAULT_AGENT_URL;
+  updatePushBar();
+}
+
+function saveAgentCfg() {
+  try { localStorage.setItem('treasury_agent_cfg', JSON.stringify(agentCfg)); } catch(e) {}
+}
+
+function updatePushBar() {
+  const urlEl = document.getElementById('pushUrl');
+  const dotEl = document.getElementById('pushDot');
+  if (!urlEl) return;
+  if (agentCfg.url && agentCfg.password) {
+    urlEl.textContent = agentCfg.url.replace(/^https?:\/\//, '');
+    dotEl.className = 'push-dot ready';
+  } else if (agentCfg.url) {
+    urlEl.textContent = agentCfg.url.replace(/^https?:\/\//, '') + ' — password not set';
+    dotEl.className = 'push-dot';
+  } else {
+    urlEl.textContent = 'No agent configured — click ⚙ to set up';
+    dotEl.className = 'push-dot';
+  }
+  document.getElementById('pushStatus').textContent = '';
+  document.getElementById('pushStatus').className = 'push-status';
+}
+
+function openSettings() {
+  document.getElementById('mc').innerHTML = `
+    <div class="overlay" onclick="if(event.target===this)closeMod()">
+      <div class="modal" style="max-width:480px">
+        <div class="modal-title">⚙ Agent Connection</div>
+        <div class="settings-field">
+          <label class="flabel">Agent URL</label>
+          <input class="finput" id="cfg_url" value="${h(agentCfg.url)}" placeholder="https://your-agent.vercel.app">
+          <div style="font-size:11px;color:var(--mu);margin-top:3px">The root URL of your deployed treasury-agent Vercel project</div>
+        </div>
+        <div class="settings-field">
+          <label class="flabel">Admin Password</label>
+          <div class="pw-wrap">
+            <input class="finput" type="password" id="cfg_pass" value="${h(agentCfg.password)}" placeholder="Your ADMIN_PASSWORD env var">
+            <button class="pw-eye" onclick="togglePwVis()" id="pwEye">👁</button>
+          </div>
+          <div style="font-size:11px;color:var(--mu);margin-top:3px">Stored locally in your browser only — never sent except to your own agent</div>
+        </div>
+        <div style="background:var(--s2);border:1px solid var(--s3);border-radius:8px;padding:12px 14px;font-size:12px;color:var(--dm);line-height:1.6">
+          <strong style="color:var(--tx)">What gets pushed:</strong> Clinic info, staff, treatments (pricing), memberships, skincare catalog, promotions, FAQs, clinical notes.<br>
+          <strong style="color:var(--tx)">Preserved:</strong> Device relevance matrix, device stack, brands knowledge, regenerative protocols, post-care timeline, competitor comparisons — all the clinical intelligence stays intact.
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-sec" onclick="closeMod()">Cancel</button>
+          <button class="btn btn-sec" onclick="testConnection(this)">Test Connection</button>
+          <button class="btn btn-gold" onclick="saveSettings()">Save</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function togglePwVis() {
+  const inp = document.getElementById('cfg_pass');
+  if (!inp) return;
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+function saveSettings() {
+  const url = (document.getElementById('cfg_url').value || '').trim().replace(/\/$/, '');
+  const pass = (document.getElementById('cfg_pass').value || '').trim();
+  agentCfg = {url, password: pass};
+  saveAgentCfg();
+  updatePushBar();
+  closeMod();
+  toast('✓ Agent settings saved');
+}
+
+async function testConnection(btn) {
+  const url = (document.getElementById('cfg_url').value || '').trim().replace(/\/$/, '');
+  const pass = (document.getElementById('cfg_pass').value || '').trim();
+  if (!url || !pass) { toast('⚠ Enter URL and password first'); return; }
+  btn.textContent = 'Testing…'; btn.disabled = true;
+  try {
+    const res = await fetch(url + '/api/admin', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action: 'auth', password: pass})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      btn.textContent = '✓ Connected';
+      btn.style.color = 'var(--green)';
+      setTimeout(() => { btn.textContent = 'Test Connection'; btn.disabled = false; btn.style.color = ''; }, 2000);
+    } else {
+      btn.textContent = '✗ ' + (data.error || 'Failed');
+      btn.style.color = 'var(--red)';
+      setTimeout(() => { btn.textContent = 'Test Connection'; btn.disabled = false; btn.style.color = ''; }, 3000);
+    }
+  } catch(err) {
+    btn.textContent = '✗ Network error';
+    btn.style.color = 'var(--red)';
+    setTimeout(() => { btn.textContent = 'Test Connection'; btn.disabled = false; btn.style.color = ''; }, 3000);
+  }
+}
+
+// Build merged KB — overlays editor fields onto existing live KB (preserves clinical intelligence)
+function buildMergedKB(currentKB) {
+  const kb = JSON.parse(JSON.stringify(currentKB)); // deep clone
+
+  // ── Clinic ────────────────────────────────────────────────────────────────
+  kb.clinic = {
+    ...(kb.clinic || {}),
+    ...(db.clinic.name        ? {name: db.clinic.name}               : {}),
+    ...(db.clinic.location    ? {location: db.clinic.location}       : {}),
+    ...(db.clinic.type        ? {type: db.clinic.type}               : {}),
+    ...(db.clinic.phone       ? {phone: db.clinic.phone}             : {}),
+    ...(db.clinic.email       ? {email: db.clinic.email}             : {}),
+    ...(db.clinic.website     ? {website: db.clinic.website}         : {}),
+    ...(db.clinic.booking_url ? {booking_url: db.clinic.booking_url} : {}),
+    ...(db.clinic.hours       ? {hours: db.clinic.hours}             : {}),
+  };
+
+  // ── Staff ─────────────────────────────────────────────────────────────────
+  if (db.staff.length > 0) {
+    kb.staff = db.staff
+      .filter(s => s.name)
+      .map(s => ({name: s.name, role: s.role, ...(s.credentials ? {credentials: s.credentials} : {})}));
+  }
+
+  // ── Promotions ────────────────────────────────────────────────────────────
+  if (db.promotions.length > 0) {
+    kb.promotions = db.promotions
+      .filter(p => p.title)
+      .map(p => ({title: p.title, description: p.description, expiry: p.expiry, eligibility: p.eligibility}));
+  }
+
+  // ── Memberships ───────────────────────────────────────────────────────────
+  if (db.memberships.length > 0) {
+    const tiers = {};
+    for (const m of db.memberships) {
+      if (!m.name) continue;
+      const fee = parseFloat(String(m.price || '').replace(/[^0-9.]/g, '')) || null;
+      const benefits = m.benefits
+        ? m.benefits.split(/[|•\n]/).map(b => b.trim()).filter(Boolean)
+        : [];
+      tiers[m.name] = {
+        ...(fee !== null ? {monthly_fee: fee} : {}),
+        ...(m.target ? {target: m.target} : {}),
+        benefits,
+      };
+    }
+    kb.memberships = {
+      model: ((kb.memberships || {}).model) || 'Monthly credit bank — payment credited in full to patient account, rollover up to 3 months',
+      tiers,
+    };
+  }
+
+  // ── Treatments (pricing reference — device_stack preserved untouched) ─────
+  if (db.treatments.length > 0) {
+    kb.treatments_pricing = db.treatments
+      .filter(t => t.name)
+      .map(t => ({
+        name: t.name,
+        category: t.category || '',
+        description: t.description || '',
+        pricing: pricingString(t),
+        ...(t.price_items && t.price_items.length ? {price_items: t.price_items} : {}),
+        ...(t.packages && t.packages.length ? {packages: t.packages} : {}),
+        sessions: t.sessions || '',
+        downtime: t.downtime || '',
+      }));
+  }
+
+  // ── Skincare catalog ──────────────────────────────────────────────────────
+  if (db.skincare.length > 0) {
+    kb.skincare_catalog = db.skincare
+      .filter(s => s.product_name)
+      .map(s => ({
+        brand: s.brand, product_name: s.product_name,
+        ...(s.sku ? {sku: s.sku} : {}),
+        category: s.category, concern: s.concern,
+        price: s.price, description: s.description, usage: s.usage,
+      }));
+  }
+
+  // ── FAQs ──────────────────────────────────────────────────────────────────
+  if (db.faqs.length > 0) {
+    kb.faqs = db.faqs.filter(f => f.question).map(f => ({question: f.question, answer: f.answer}));
+  }
+
+  // ── Clinical notes ────────────────────────────────────────────────────────
+  if (db.clinical_notes.length > 0) {
+    kb.clinical_notes = db.clinical_notes.filter(n => n.notes).map(n => n.notes);
+  }
+
+  // ── Branding ──────────────────────────────────────────────────────────────
+  if (db.branding) {
+    kb.branding = db.branding;
+  }
+
+  return kb;
+}
+
+async function doPush() {
+  if (!agentCfg.url || !agentCfg.password) {
+    openSettings();
+    toast('⚠ Set up agent connection first');
+    return;
+  }
+
+  const btn = document.getElementById('pushBtn');
+  const dotEl = document.getElementById('pushDot');
+  const statusEl = document.getElementById('pushStatus');
+
+  btn.disabled = true;
+  btn.textContent = 'Pushing…';
+  dotEl.className = 'push-dot pushing';
+  statusEl.textContent = 'Authenticating…';
+  statusEl.className = 'push-status';
+
+  try {
+    const base = agentCfg.url.replace(/\/$/, '');
+
+    // Step 1 — Auth
+    const authRes = await fetch(base + '/api/admin', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action: 'auth', password: agentCfg.password})
+    });
+    const authData = await authRes.json();
+    if (!authData.ok) throw new Error(authData.error || 'Auth failed');
+    const token = authData.token;
+
+    // Step 2 — Fetch current KB (to preserve clinical intelligence)
+    statusEl.textContent = 'Fetching current knowledge…';
+    const getRes = await fetch(base + '/api/admin', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action: 'get', token})
+    });
+    const getData = await getRes.json();
+    if (!getData.ok) throw new Error(getData.error || 'Failed to fetch KB');
+    const currentKB = getData.json;
+
+    // Step 3 — Merge editor data into current KB
+    statusEl.textContent = 'Merging…';
+    const merged = buildMergedKB(currentKB);
+
+    // Step 4 — Push
+    statusEl.textContent = 'Uploading…';
+    const pushRes = await fetch(base + '/api/admin', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action: 'replace', token, json: merged})
+    });
+    const pushData = await pushRes.json();
+    if (!pushData.ok) throw new Error(pushData.error || 'Push failed');
+
+    // Success
+    dotEl.className = 'push-dot ready';
+    statusEl.textContent = '✓ Live — ' + new Date().toLocaleTimeString();
+    statusEl.className = 'push-status ok';
+    toast('✓ Knowledge base pushed — agent is live with latest data');
+
+  } catch(err) {
+    dotEl.className = 'push-dot error';
+    statusEl.textContent = '✗ ' + (err.message || 'Unknown error');
+    statusEl.className = 'push-status err';
+    toast('✗ Push failed: ' + (err.message || 'Unknown error'));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🚀 Push to Agent';
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// FILE INPUT (full CSV)
+// ══════════════════════════════════════════════════════
+document.getElementById('fileIn').addEventListener('change', function(e) {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => { importCSV(ev.target.result); e.target.value=''; };
+  r.readAsText(f);
+});
+
+document.getElementById('skincareIn').addEventListener('change', function(e) {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => { parseSkincareImport(ev.target.result); e.target.value=''; };
+  r.readAsText(f);
+});
+
+// ══════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════
+function init() {
+  loadAgentCfg();
+
+  try {
+    const saved = localStorage.getItem('treasury_kb');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      db = {...blank(), ...parsed};
+      // Ensure treatments have arrays
+      for (const t of (db.treatments||[])) {
+        if (!Array.isArray(t.price_items)) t.price_items = [];
+        if (!Array.isArray(t.packages)) t.packages = [];
+      }
+      hasData = true;
+    }
+  } catch(e) {}
+
+  renderNav();
+
+  if (!hasData) {
+    document.getElementById('main').innerHTML = `
+      <div style="max-width:520px;margin:80px auto">
+        <label style="cursor:pointer">
+          <div class="drop-zone" id="dz">
+            <div class="dz-ico">📂</div>
+            <div class="dz-txt">Import your knowledge CSV</div>
+            <div class="dz-sub">Click to browse or drag & drop your CSV file<br><br>
+              Or <a href="#" onclick="loadBlank();return false" style="color:var(--gold)">start with a blank template</a>
+            </div>
+          </div>
+          <input type="file" accept=".csv" style="display:none" onchange="handleDrop(this)">
+        </label>
+      </div>`;
+    const dz = document.getElementById('dz');
+    if (dz) {
+      dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('dov'); });
+      dz.addEventListener('dragleave', ()=>dz.classList.remove('dov'));
+      dz.addEventListener('drop', e=>{
+        e.preventDefault(); dz.classList.remove('dov');
+        const f = e.dataTransfer.files[0];
+        if (f) { const r = new FileReader(); r.onload = ev=>importCSV(ev.target.result); r.readAsText(f); }
+      });
+    }
+  } else {
+    renderSection();
+  }
+}
+
+function handleDrop(input) {
+  const f = input.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => { importCSV(ev.target.result); input.value=''; };
+  r.readAsText(f);
+}
+
+function loadBlank() {
+  db = blank(); hasData = true;
+  save(); renderNav(); renderSection();
+  toast('✓ Blank template ready — fill in your clinic data');
+}
+
+init();
+</script>
+</body>
+</html>
