@@ -238,7 +238,7 @@ td{padding:10px 14px;vertical-align:middle}
 const blank = () => ({
   clinic:{ name:'',type:'',location:'',phone:'',email:'',website:'',booking_url:'',hours:'' },
   staff:[], treatments:[], memberships:[], skincare:[],
-  promotions:[], faqs:[], clinical_notes:[],
+  promotions:[], faqs:[], clinical_notes:[], treatment_recommendation_rules:[],
   branding:{ primary_color:'#C9A94A', logo_url:'', secondary_color:'' },
   checklist:{}
 });
@@ -607,7 +607,8 @@ function rTreatments(){
       </div></td></tr>`;
   }).join('');
   return `<div class="sec-hdr"><div><div class="sec-title">Treatments & Devices</div><div class="sec-sub">${db.treatments.length} treatment${db.treatments.length!==1?'s':''}</div></div>
-    <button class="btn btn-gold" onclick="openTreatmentModal(-1)">+ Add Treatment</button></div>
+    <button class="btn btn-gold" onclick="openTreatmentModal(-1)">+ Add Treatment</button>
+    <button class="btn btn-sec" onclick="openNewTreatmentTypeModal()" style="margin-left:8px">✦ New Treatment Type</button></div>
     <div class="tbl-wrap"><table>
       <thead><tr><th>Treatment</th><th>Pricing</th><th>Sessions</th><th>Downtime</th><th></th></tr></thead>
       <tbody>${rows||'<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--mu)">No treatments added</td></tr>'}</tbody>
@@ -1038,6 +1039,98 @@ function saveTreatmentModal(idx) {
 }
 
 // ══════════════════════════════════════════════════════
+// NEW TREATMENT TYPE MODAL
+// ══════════════════════════════════════════════════════
+function openNewTreatmentTypeModal() {
+  document.getElementById('mc').innerHTML = `
+    <div class="overlay" onclick="if(event.target===this)closeMod()">
+      <div class="modal modal-wide">
+        <div class="modal-title">✦ New Treatment Type</div>
+        <div class="modal-fields">
+
+          <div style="background:rgba(201,169,74,0.07);border:1px solid rgba(201,169,74,0.2);border-radius:8px;padding:14px 16px;margin-bottom:18px;font-size:12px;color:var(--mu);line-height:1.6">
+            <strong style="color:var(--dm);display:block;margin-bottom:4px">What is this for?</strong>
+            Use this form when you're adding a genuinely new service category — injectables, body treatments, IV therapy, etc. In addition to the standard treatment details, you'll define <em>when the agent should proactively recommend it</em>, so it shows up in patient plans automatically.
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+            <div class="fg"><label class="flabel">Treatment Name *</label>
+              <input class="fi" id="ntt-name" placeholder="e.g. Dysport, HydraFacial, IV Glutathione"></div>
+            <div class="fg"><label class="flabel">Category *</label>
+              <input class="fi" id="ntt-cat" placeholder="e.g. Neurotoxin, Body, Wellness"></div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+            <div class="fg"><label class="flabel">Administered By</label>
+              <input class="fi" id="ntt-by" placeholder="e.g. Nurse Tammy Hundt, RN"></div>
+            <div class="fg"><label class="flabel">Pricing</label>
+              <input class="fi" id="ntt-price" placeholder="e.g. $11/unit, $350/session"></div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+            <div class="fg"><label class="flabel">Sessions / Protocol</label>
+              <input class="fi" id="ntt-sessions" placeholder="e.g. 1 session, lasts 3-4 months"></div>
+            <div class="fg"><label class="flabel">Downtime</label>
+              <input class="fi" id="ntt-downtime" placeholder="e.g. None, 24h mild redness"></div>
+          </div>
+
+          <div class="fg" style="margin-bottom:14px">
+            <label class="flabel">Clinical Description</label>
+            <textarea class="fi" id="ntt-desc" rows="3" placeholder="What does this treatment do? What conditions does it address? What is the mechanism?"></textarea>
+          </div>
+
+          <div class="fg" style="border:1px solid rgba(201,169,74,0.3);border-radius:8px;padding:14px;background:rgba(201,169,74,0.04)">
+            <label class="flabel" style="color:var(--dm)">⚡ Agent Recommendation Logic</label>
+            <div style="font-size:11px;color:var(--mu);margin-bottom:8px;line-height:1.6">
+              Describe <strong>when</strong> the agent should proactively bring up this treatment — the patient concerns or signals that should trigger it, how it pairs with other treatments, and what to highlight. Write in plain language, as if briefing a consultant.<br><br>
+              <strong style="color:var(--dm)">Template:</strong> <em>"Include for patients mentioning [concern / trigger]. Always present alongside [related treatments] because [clinical reason]. Highlight [key benefit or differentiator]. Note [any important caution or context]."</em><br><br>
+              <strong style="color:var(--dm)">Example:</strong> <em>"Include for any patient mentioning forehead lines, frown lines, crow's feet, or any aging concern where muscle movement creates visible lines. Present alongside skin-tightening treatments — neurotoxin relaxes the dynamic (movement-driven) component while energy devices address static lines and laxity. Highlight the 3–4 month duration and that combining both gives more complete results than either alone. Note that Dysport spreads more — better for larger areas."</em>
+            </div>
+            <textarea class="fi" id="ntt-rule" rows="5" placeholder="When should the agent include this treatment in a patient plan? What concerns trigger it? How does it complement existing treatments?"></textarea>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-sec" onclick="closeMod()">Cancel</button>
+          <button class="btn btn-gold" onclick="saveNewTreatmentType()">Add Treatment Type</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function saveNewTreatmentType() {
+  const name     = document.getElementById('ntt-name').value.trim();
+  const category = document.getElementById('ntt-cat').value.trim();
+  const by       = document.getElementById('ntt-by').value.trim();
+  const price    = document.getElementById('ntt-price').value.trim();
+  const sessions = document.getElementById('ntt-sessions').value.trim();
+  const downtime = document.getElementById('ntt-downtime').value.trim();
+  const desc     = document.getElementById('ntt-desc').value.trim();
+  const rule     = document.getElementById('ntt-rule').value.trim();
+
+  if (!name) { alert('Treatment name is required.'); return; }
+
+  // Add to treatments list
+  db.treatments.push({
+    name, category,
+    description: (by ? `Administered by ${by}. ` : '') + desc,
+    pricing: price,
+    sessions, downtime,
+    price_items: [], packages: [],
+    recommendation_rule: rule || null
+  });
+
+  // Add to recommendation rules registry (feeds agent decision logic)
+  if (rule) {
+    if (!db.treatment_recommendation_rules) db.treatment_recommendation_rules = [];
+    db.treatment_recommendation_rules.push({ treatment: name, rule });
+  }
+
+  closeMod(); save(); renderNav(); renderSection();
+  toast(`✓ ${name} added — agent recommendation logic saved`);
+}
+
+// ══════════════════════════════════════════════════════
 // GENERIC MODAL (staff, memberships, skincare, etc.)
 // ══════════════════════════════════════════════════════
 const MC = {
@@ -1327,6 +1420,11 @@ function buildMergedKB(currentKB) {
   // ── Clinical notes ────────────────────────────────────────────────────────
   if (db.clinical_notes.length > 0) {
     kb.clinical_notes = db.clinical_notes.filter(n => n.notes).map(n => n.notes);
+  }
+
+  // ── Treatment recommendation rules (from New Treatment Type modal) ─────────
+  if (db.treatment_recommendation_rules && db.treatment_recommendation_rules.length > 0) {
+    kb.treatment_recommendation_rules = db.treatment_recommendation_rules;
   }
 
   // ── Branding ──────────────────────────────────────────────────────────────
