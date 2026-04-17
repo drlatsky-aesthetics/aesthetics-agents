@@ -199,6 +199,18 @@ td{padding:10px 14px;vertical-align:middle}
 .promo-card{border-color:var(--goldring)!important}
 
 @media(max-width:640px){.form-grid{grid-template-columns:1fr}.main{padding:16px}.hdr-title{display:none}}
+
+.cat-section { border:1px solid var(--s3); border-radius:8px; margin-bottom:10px; overflow:hidden; }
+.cat-section.cat-empty { opacity:0.45; }
+.cat-hdr { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:var(--s2); cursor:pointer; font-size:12px; font-weight:600; letter-spacing:0.5px; color:var(--dm); user-select:none; }
+.cat-hdr:hover { background:rgba(201,169,74,0.08); }
+.cat-count { background:rgba(201,169,74,0.15); color:var(--dm); border-radius:10px; padding:1px 8px; font-size:11px; }
+.cat-chevron { font-size:10px; color:var(--mu); transition:transform 0.2s; }
+.cat-collapsed .cat-chevron { transform:rotate(-90deg); }
+.cat-body { border-top:1px solid var(--s3); }
+.cat-collapsed .cat-body { display:none; }
+.mx-node.mx-active rect { stroke-width:2.5; filter:brightness(1.3); }
+.mx-node.mx-dim { opacity:0.22; }
 </style>
 </head>
 <body>
@@ -243,6 +255,28 @@ const blank = () => ({
   checklist:{}
 });
 let db = blank();
+
+const TREATMENT_CATEGORIES = ['LASER DEVICES','MICRONEEDLING DEVICES','LED DEVICES','FACIAL DEVICES','ADD ONS','NEUROTOXINS','OTHER'];
+
+const CONCERN_AREAS = [
+  {key:'anti_aging_lines_laxity_jawline_firmness', label:'Anti-Aging / Lines / Laxity / Jawline'},
+  {key:'periorbital_eyes_crows_feet_under_eye',    label:"Crow's Feet / Under-Eye / Periorbital"},
+  {key:'dynamic_wrinkles_neurotoxin',              label:'Dynamic Wrinkles (Neurotoxin)'},
+  {key:'acne_active_acne_scarring',                label:'Acne / Active Acne / Scarring'},
+  {key:'hyperpigmentation_melasma_sun_damage',     label:'Hyperpigmentation / Melasma / Sun Damage'},
+  {key:'skin_texture_pores_roughness',             label:'Skin Texture / Pores / Roughness'},
+  {key:'lip_volume_lip_lines',                     label:'Lip Volume / Lip Lines'},
+  {key:'volume_loss_tear_trough_midface',          label:'Volume Loss / Tear Trough / Midface'},
+  {key:'cheek_chin_jaw_contour',                   label:'Cheek / Chin / Jaw Contour'},
+  {key:'skin_hydration_barrier',                   label:'Skin Hydration / Barrier / Redness'},
+  {key:'redness_rosacea_vascular',                 label:'Redness / Rosacea / Vascular'},
+  {key:'hair_loss_scalp_health',                   label:'Hair Loss / Scalp Health'},
+  {key:'hyperhidrosis',                            label:'Hyperhidrosis'},
+  {key:'body_contouring',                          label:'Body Contouring'},
+  {key:'custom',                                   label:'— Custom (type below) —'},
+];
+let NTT_MX = []; // matrix rows state for New Treatment Category modal
+
 let tab = 'clinic';
 let brandFilter = 'All';
 let hasData = false;
@@ -267,9 +301,18 @@ function parseCSV(txt) {
   return rows;
 }
 
-function importCSV(txt) {
+// Pending import state — set before showing mode dialog
+let _pendingImportTxt = null;
+
+function importCSV(txt, mode) {
+  // If no mode given, show the merge-or-replace dialog first
+  if (!mode) {
+    _pendingImportTxt = txt;
+    _showImportDialog();
+    return;
+  }
+
   const rows = parseCSV(txt);
-  const nd = blank();
   const byS = {};
   for (const r of rows) {
     const s = (r[0] || '').toUpperCase();
@@ -277,42 +320,120 @@ function importCSV(txt) {
     if (!byS[s]) byS[s] = [];
     byS[s].push({ field: r[1]||'', value: r[2]||'', notes: r[3]||'' });
   }
-  // Clinic
-  if (byS.CLINIC) for (const r of byS.CLINIC) if (r.field in nd.clinic) nd.clinic[r.field] = r.value;
 
-  // Multi-record sections
+  // Section definitions: [csvKey, dbKey, splitField, allFields, matchKey]
   const SECS = [
-    ['STAFF',     'staff',         'name',     ['name','role','credentials']],
-    ['TREATMENT', 'treatments',    'name',     ['name','category','description','pricing','sessions','downtime']],
-    ['MEMBERSHIP','memberships',   'name',     ['name','price','benefits']],
-    ['SKINCARE',  'skincare',      'brand',    ['brand','product_name','sku','category','concern','price','description','usage']],
-    ['PROMOTION', 'promotions',    'title',    ['title','description','expiry','eligibility']],
-    ['FAQ',       'faqs',          'question', ['question','answer']],
+    ['STAFF',     'staff',      'name',     ['name','role','credentials'],                                              'name'],
+    ['TREATMENT', 'treatments', 'name',     ['name','category','description','pricing','sessions','downtime'],           'name'],
+    ['MEMBERSHIP','memberships','name',     ['name','price','benefits'],                                                 'name'],
+    ['SKINCARE',  'skincare',   'brand',    ['brand','product_name','sku','category','concern','price','description','usage'], 'product_name'],
+    ['PROMOTION', 'promotions', 'title',    ['title','description','expiry','eligibility'],                              'title'],
+    ['FAQ',       'faqs',       'question', ['question','answer'],                                                       'question'],
   ];
+
+  // Parse CSV rows into structured objects
+  const parsed = {};
+  const clinicFields = {};
+  if (byS.CLINIC) for (const r of byS.CLINIC) if (r.field && r.value) clinicFields[r.field] = r.value;
   for (const [key, tgt, delim, fields] of SECS) {
+    parsed[tgt] = [];
     if (!byS[key]) continue;
     let cur = null;
     for (const r of byS[key]) {
-      if (r.field === delim) { if (cur) nd[tgt].push(cur); cur = Object.fromEntries(fields.map(f=>[f,''])); }
+      if (r.field === delim) { if (cur) parsed[tgt].push(cur); cur = Object.fromEntries(fields.map(f=>[f,''])); }
       if (cur && r.field) cur[r.field] = r.value;
     }
-    if (cur) nd[tgt].push(cur);
+    if (cur) parsed[tgt].push(cur);
   }
-  // Ensure treatments have price_items / packages arrays
-  for (const t of nd.treatments) {
+  for (const t of parsed.treatments) {
     if (!t.price_items) t.price_items = [];
     if (!t.packages) t.packages = [];
+    if (!t.matrix_entries) t.matrix_entries = [];
   }
-  // Clinical notes
-  if (byS.CLINICAL_NOTES) for (const r of byS.CLINICAL_NOTES) if (r.field === 'notes' && r.value) nd.clinical_notes.push({notes: r.value});
 
-  db = nd; hasData = true; brandFilter = 'All';
+  let added = 0, updated = 0;
+
+  if (mode === 'replace') {
+    // ── REPLACE ALL ─────────────────────────────────────────────────────────
+    const nd = blank();
+    for (const [k, v] of Object.entries(clinicFields)) if (k in nd.clinic) nd.clinic[k] = v;
+    for (const [, tgt] of SECS) nd[tgt] = parsed[tgt];
+    if (byS.CLINICAL_NOTES) for (const r of byS.CLINICAL_NOTES) if (r.field==='notes'&&r.value) nd.clinical_notes.push({notes:r.value});
+    db = nd;
+    added = SECS.reduce((n,[,tgt])=>n+parsed[tgt].length, 0);
+  } else {
+    // ── MERGE (add new, update matching, preserve everything else) ───────────
+    // Clinic: only overwrite fields that have a value in the CSV
+    for (const [k, v] of Object.entries(clinicFields)) if (v && k in db.clinic) db.clinic[k] = v;
+
+    for (const [, tgt, , , matchKey] of SECS) {
+      for (const incoming of parsed[tgt]) {
+        const matchVal = incoming[matchKey];
+        if (!matchVal) continue;
+        const existIdx = db[tgt].findIndex(e => (e[matchKey]||'').toLowerCase() === matchVal.toLowerCase());
+        if (existIdx >= 0) {
+          // Update: overwrite non-empty fields, but preserve existing arrays (price_items, packages, matrix_entries, protocols)
+          for (const [k, v] of Object.entries(incoming)) {
+            if (Array.isArray(db[tgt][existIdx][k])) continue; // keep existing arrays
+            if (v !== '' && v !== null && v !== undefined) db[tgt][existIdx][k] = v;
+          }
+          updated++;
+        } else {
+          db[tgt].push(incoming);
+          added++;
+        }
+      }
+    }
+    // Clinical notes: append only if not already present
+    if (byS.CLINICAL_NOTES) {
+      for (const r of byS.CLINICAL_NOTES) {
+        if (r.field==='notes' && r.value && !db.clinical_notes.some(n=>n.notes===r.value)) {
+          db.clinical_notes.push({notes: r.value}); added++;
+        }
+      }
+    }
+  }
+
+  hasData = true; brandFilter = 'All';
   save(); renderNav(); renderSection();
-  toast('✓ CSV imported — ' + [
-    db.staff.length + ' staff',
-    db.treatments.length + ' treatments',
-    db.skincare.length + ' skincare products',
-  ].join(' · '));
+  const msg = mode === 'replace'
+    ? `✓ Replaced — ${db.treatments.length} treatments · ${db.skincare.length} skincare · ${db.staff.length} staff`
+    : `✓ Merged — ${added} added · ${updated} updated · existing data preserved`;
+  toast(msg);
+}
+
+function _showImportDialog() {
+  document.getElementById('mc').innerHTML = `
+    <div class="overlay" onclick="if(event.target===this){closeMod();_pendingImportTxt=null}">
+      <div class="modal" style="max-width:480px">
+        <div class="modal-title">⬆ Import CSV</div>
+        <div class="modal-fields">
+          <div style="font-size:13px;color:var(--dt);margin-bottom:16px;line-height:1.6">
+            How should this CSV be imported into your current knowledge base?
+          </div>
+          <div style="display:grid;gap:10px">
+            <button class="btn btn-gold" onclick="_doImport('merge')" style="padding:14px 20px;text-align:left;display:block;width:100%">
+              <div style="font-size:13px;font-weight:600;margin-bottom:4px">✦ Merge (Recommended)</div>
+              <div style="font-size:11px;color:rgba(0,0,0,0.65);font-weight:400">Add new records · Update matching ones by name · Keep everything else untouched</div>
+            </button>
+            <button class="btn btn-sec" onclick="_doImport('replace')" style="padding:14px 20px;text-align:left;display:block;width:100%">
+              <div style="font-size:13px;font-weight:600;margin-bottom:4px">⚠ Replace All</div>
+              <div style="font-size:11px;color:var(--mu);font-weight:400">Wipe current data and import only this file — cannot be undone</div>
+            </button>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-sec" onclick="closeMod();_pendingImportTxt=null">Cancel</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function _doImport(mode) {
+  closeMod();
+  const txt = _pendingImportTxt;
+  _pendingImportTxt = null;
+  if (txt) importCSV(txt, mode);
 }
 
 // ══════════════════════════════════════════════════════
@@ -515,6 +636,7 @@ const TABS = [
   {id:'clinic',        label:'Clinic Info',    ico:'🏥', cnt:()=>1},
   {id:'staff',         label:'Staff',          ico:'👥', cnt:()=>db.staff.length},
   {id:'treatments',    label:'Treatments',     ico:'💆', cnt:()=>db.treatments.length},
+  {id:'matrix',        label:'Decision Matrix',ico:'🗺️', cnt:()=>{ const total = db.treatments.reduce((n,t)=>(t.matrix_entries||[]).length?n+1:n,0); return total; }},
   {id:'memberships',   label:'Memberships',    ico:'💳', cnt:()=>db.memberships.length},
   {id:'skincare',      label:'Skincare',       ico:'🧴', cnt:()=>db.skincare.length},
   {id:'promotions',    label:'Promotions',     ico:'🎁', cnt:()=>db.promotions.length},
@@ -545,7 +667,7 @@ function h(s){ return s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&
 // ══════════════════════════════════════════════════════
 function renderSection() {
   const el = document.getElementById('main');
-  const fn = {clinic:rClinic,staff:rStaff,treatments:rTreatments,memberships:rMemberships,skincare:rSkincare,promotions:rPromotions,faqs:rFAQs,clinical_notes:rNotes,branding:rBranding,setup:rSetup};
+  const fn = {clinic:rClinic,staff:rStaff,treatments:rTreatments,matrix:rMatrix,memberships:rMemberships,skincare:rSkincare,promotions:rPromotions,faqs:rFAQs,clinical_notes:rNotes,branding:rBranding,setup:rSetup};
   el.innerHTML = (fn[tab]||rClinic)();
 }
 
@@ -593,26 +715,253 @@ function rStaff(){
 
 // ─── TREATMENTS ───────────────────────────────────────
 function rTreatments(){
-  const rows = db.treatments.map((t,i)=>{
-    const dispPrice = pricingString(t);
-    const hasSt = (t.price_items||[]).length || (t.packages||[]).length;
-    return `<tr>
-      <td><strong>${h(t.name)}</strong><div class="td-dim">${h(t.category)}</div></td>
-      <td class="td-trunc td-price" title="${h(dispPrice)}">${hasSt?'<span title="Structured pricing" style="font-size:10px;color:var(--dm);margin-right:4px">⚙</span>':''}${h(dispPrice)||'—'}</td>
-      <td class="td-dim">${h(t.sessions)||'—'}</td>
-      <td class="td-dim">${h(t.downtime)||'—'}</td>
-      <td><div class="td-acts">
-        <button class="btn btn-sec btn-sm" onclick="openTreatmentModal(${i})">Edit</button>
-        <button class="btn btn-del btn-sm" onclick="del('treatments',${i})">✕</button>
-      </div></td></tr>`;
+  const catIco = {
+    'LASER DEVICES':'🔴','MICRONEEDLING DEVICES':'🪡','LED DEVICES':'💡',
+    'FACIAL DEVICES':'💆','ADD ONS':'✦','NEUROTOXINS':'💉','OTHER':'📦'
+  };
+  // Group treatments by category (normalise to upper for matching)
+  const grouped = {};
+  TREATMENT_CATEGORIES.forEach(c => grouped[c] = []);
+  db.treatments.forEach((t,i) => {
+    const cat = (t.category||'').toUpperCase();
+    const key = TREATMENT_CATEGORIES.includes(cat) ? cat : 'OTHER';
+    grouped[key].push({t,i});
+  });
+
+  const sections = TREATMENT_CATEGORIES.map(cat => {
+    const items = grouped[cat];
+    if (!items.length) return `
+      <div class="cat-section cat-empty">
+        <div class="cat-hdr" onclick="toggleCat('${cat}')">
+          <span>${catIco[cat]||'📦'} ${cat}</span>
+          <span class="cat-count">0</span>
+        </div>
+      </div>`;
+
+    const rows = items.map(({t,i}) => {
+      const dispPrice = pricingString(t);
+      const hasSt = (t.price_items||[]).length || (t.packages||[]).length;
+      const hasProto = (t.protocols||[]).length;
+      return `<tr>
+        <td><strong>${h(t.name)}</strong>${hasProto ? ' <span title="'+h((t.protocols||[]).map(p=>p.name).join(', '))+'" style="font-size:10px;color:var(--dm)">📎</span>' : ''}</td>
+        <td class="td-trunc td-price" title="${h(dispPrice)}">${hasSt?'<span title="Structured pricing" style="font-size:10px;color:var(--dm);margin-right:4px">⚙</span>':''}${h(dispPrice)||'—'}</td>
+        <td class="td-dim">${h(t.sessions)||'—'}</td>
+        <td class="td-dim">${h(t.downtime)||'—'}</td>
+        <td><div class="td-acts">
+          <button class="btn btn-sec btn-sm" onclick="openTreatmentModal(${i})">Edit</button>
+          <button class="btn btn-del btn-sm" onclick="del('treatments',${i})">✕</button>
+        </div></td></tr>`;
+    }).join('');
+
+    return `
+      <div class="cat-section" id="cat-${cat.replace(/\s+/g,'_')}">
+        <div class="cat-hdr" onclick="toggleCat('${cat}')">
+          <span>${catIco[cat]||'📦'} ${cat}</span>
+          <span style="display:flex;align-items:center;gap:10px">
+            <span class="cat-count">${items.length}</span>
+            <span class="cat-chevron">▾</span>
+          </span>
+        </div>
+        <div class="cat-body">
+          <div class="tbl-wrap" style="margin:0">
+            <table>
+              <thead><tr><th>Treatment</th><th>Pricing</th><th>Sessions</th><th>Downtime</th><th></th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>`;
   }).join('');
+
   return `<div class="sec-hdr"><div><div class="sec-title">Treatments & Devices</div><div class="sec-sub">${db.treatments.length} treatment${db.treatments.length!==1?'s':''}</div></div>
-    <button class="btn btn-gold" onclick="openTreatmentModal(-1)">+ Add Treatment</button>
-    <button class="btn btn-sec" onclick="openNewTreatmentTypeModal()" style="margin-left:8px">✦ New Treatment Type</button></div>
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>Treatment</th><th>Pricing</th><th>Sessions</th><th>Downtime</th><th></th></tr></thead>
-      <tbody>${rows||'<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--mu)">No treatments added</td></tr>'}</tbody>
-    </table></div>`;
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-gold" onclick="openTreatmentModal(-1)">+ Add Treatment</button>
+      <button class="btn btn-sec" onclick="openNewTreatmentCategoryModal()">✦ New Treatment Category</button>
+    </div></div>
+    ${sections}`;
+}
+
+function toggleCat(cat) {
+  const el = document.getElementById('cat-' + cat.replace(/\s+/g,'_'));
+  if (!el) return;
+  el.classList.toggle('cat-collapsed');
+}
+
+// ─── DECISION MATRIX ──────────────────────────────────
+function rMatrix() {
+  // Assemble matrix data from db.treatments
+  const matrixData = {}; // concern -> [{treatment, role, note}]
+  for (const t of db.treatments) {
+    if (!t.name) continue;
+    for (const e of (t.matrix_entries || [])) {
+      if (!e.concern) continue;
+      if (!matrixData[e.concern]) matrixData[e.concern] = [];
+      matrixData[e.concern].push({ treatment: t.name, role: e.role || 'secondary', note: e.note || '' });
+    }
+  }
+  const concerns = Object.keys(matrixData).sort();
+  const treatments = [...new Set(
+    Object.values(matrixData).flat().map(e => e.treatment)
+  )].sort();
+
+  const isEmpty = !concerns.length;
+
+  // Layout constants
+  const rowH = 52;
+  const nodeW = 220;
+  const nodeH = 36;
+  const padY = 30;
+  const svgW = 860;
+  const leftX = 20;
+  const rightX = svgW - nodeW - 20;
+  const cH = Math.max(concerns.length, treatments.length) * rowH + padY * 2 + 20;
+
+  const concY = (i) => padY + i * rowH + rowH / 2;
+  const treatY = (i) => padY + i * rowH + rowH / 2;
+
+  const roleColor = { primary: '#C9A94A', secondary: '#5b8dd9', supporting: '#888' };
+  const roleDash  = { primary: 'none',    secondary: 'none',     supporting: '5,4' };
+
+  // SVG lines
+  let lines = '';
+  for (const [concern, entries] of Object.entries(matrixData)) {
+    const ci = concerns.indexOf(concern);
+    for (const e of entries) {
+      const ti = treatments.indexOf(e.treatment);
+      if (ci < 0 || ti < 0) continue;
+      const x1 = leftX + nodeW;
+      const y1 = concY(ci);
+      const x2 = rightX;
+      const y2 = treatY(ti);
+      const mx = (x1 + x2) / 2;
+      const color = roleColor[e.role] || '#888';
+      const dash = roleDash[e.role] || 'none';
+      const noteAttr = e.note ? ` data-note="${e.note.replace(/"/g,'&quot;')}"` : '';
+      lines += `<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"
+        fill="none" stroke="${color}" stroke-width="2" opacity="0.55"
+        stroke-dasharray="${dash}" class="mx-line"
+        data-concern="${concern}" data-treatment="${e.treatment.replace(/"/g,'&quot;')}" data-role="${e.role}"${noteAttr}
+        onmouseenter="mxLineHover(this,event)" onmouseleave="mxLineOut()"
+      />`;
+    }
+  }
+
+  // Concern nodes (left)
+  let concNodes = '';
+  concerns.forEach((c, i) => {
+    const y = concY(i) - nodeH / 2;
+    const label = (CONCERN_AREAS.find(a => a.key === c) || {}).label || c.replace(/_/g,' ');
+    const count = (matrixData[c] || []).length;
+    concNodes += `
+      <g class="mx-node" data-node="concern" data-key="${c}" onclick="mxNodeClick(this)" style="cursor:pointer">
+        <rect x="${leftX}" y="${y}" width="${nodeW}" height="${nodeH}" rx="8"
+          fill="rgba(255,255,255,0.04)" stroke="rgba(201,169,74,0.35)" stroke-width="1.5"/>
+        <text x="${leftX + 12}" y="${y + 13}" font-size="11" fill="var(--mu)" font-family="inherit">${count} treatment${count!==1?'s':''}</text>
+        <text x="${leftX + 12}" y="${y + 27}" font-size="12.5" fill="var(--dt)" font-family="inherit" font-weight="500">${label.length > 28 ? label.slice(0,26)+'…' : label}</text>
+        <title>${label}</title>
+      </g>`;
+  });
+
+  // Treatment nodes (right)
+  let treatNodes = '';
+  treatments.forEach((t, i) => {
+    const y = treatY(i) - nodeH / 2;
+    const catIco = {'LASER DEVICES':'🔴','MICRONEEDLING DEVICES':'🪡','LED DEVICES':'💡','FACIAL DEVICES':'💆','ADD ONS':'✦','NEUROTOXINS':'💉','OTHER':'📦'};
+    const tData = db.treatments.find(tx => tx.name === t);
+    const ico = catIco[(tData?.category||'').toUpperCase()] || '💆';
+    treatNodes += `
+      <g class="mx-node" data-node="treatment" data-key="${t.replace(/"/g,'&quot;')}" onclick="mxNodeClick(this)" style="cursor:pointer">
+        <rect x="${rightX}" y="${y}" width="${nodeW}" height="${nodeH}" rx="8"
+          fill="rgba(255,255,255,0.04)" stroke="rgba(91,141,217,0.35)" stroke-width="1.5"/>
+        <text x="${rightX + 10}" y="${y + 22}" font-size="13" fill="var(--dt)" font-family="inherit" font-weight="500">${ico} ${t.length > 22 ? t.slice(0,20)+'…' : t}</text>
+        <title>${t}</title>
+      </g>`;
+  });
+
+  const legendSvg = `
+    <div style="display:flex;gap:20px;align-items:center;margin-bottom:14px;font-size:12px;color:var(--mu)">
+      <span><svg width="32" height="10"><line x1="0" y1="5" x2="32" y2="5" stroke="#C9A94A" stroke-width="2"/></svg> Primary</span>
+      <span><svg width="32" height="10"><line x1="0" y1="5" x2="32" y2="5" stroke="#5b8dd9" stroke-width="2"/></svg> Secondary</span>
+      <span><svg width="32" height="10"><line x1="0" y1="5" x2="32" y2="5" stroke="#888" stroke-width="2" stroke-dasharray="5,4"/></svg> Supporting</span>
+      <span style="margin-left:auto;font-size:11px">Click any node to highlight · Hover a line for details</span>
+    </div>`;
+
+  const tooltip = `<div id="mx-tooltip" style="display:none;position:fixed;background:rgba(10,10,10,0.92);border:1px solid rgba(201,169,74,0.3);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--dt);z-index:9999;pointer-events:none;max-width:280px;line-height:1.6"></div>`;
+
+  const emptyHtml = `
+    <div class="empty" style="padding:60px 0">
+      <div class="empty-ico">🗺️</div>
+      <div class="empty-txt">Decision Matrix is empty</div>
+      <div class="empty-sub" style="max-width:360px;margin:0 auto">Open any treatment, scroll to the Decision Matrix section, and map it to the patient concerns it addresses. The map will appear here.</div>
+    </div>`;
+
+  return `
+    <div class="sec-hdr">
+      <div>
+        <div class="sec-title">Decision Matrix</div>
+        <div class="sec-sub">How the AI routes patient concerns to treatments</div>
+      </div>
+      <button class="btn btn-sec" onclick="tab='treatments';renderSection()" style="font-size:12px">✏️ Edit Treatments</button>
+    </div>
+    ${tooltip}
+    ${isEmpty ? emptyHtml : `
+      ${legendSvg}
+      <div style="overflow-x:auto;border:1px solid rgba(255,255,255,0.07);border-radius:10px;background:rgba(255,255,255,0.02)">
+        <svg id="mx-svg" viewBox="0 0 ${svgW} ${cH}" width="${svgW}" height="${cH}" style="display:block;min-width:${svgW}px;max-width:100%">
+          <text x="${leftX + nodeW/2}" y="18" text-anchor="middle" font-size="11" fill="var(--mu)" font-family="inherit" font-weight="600" letter-spacing="0.08em">PATIENT CONCERNS</text>
+          <text x="${rightX + nodeW/2}" y="18" text-anchor="middle" font-size="11" fill="var(--mu)" font-family="inherit" font-weight="600" letter-spacing="0.08em">TREATMENTS</text>
+          ${lines}
+          ${concNodes}
+          ${treatNodes}
+        </svg>
+      </div>
+    `}`;
+}
+
+function mxNodeClick(el) {
+  const svg = document.getElementById('mx-svg');
+  if (!svg) return;
+  const key = el.dataset.key;
+  const type = el.dataset.node;
+  const attr = type === 'concern' ? 'data-concern' : 'data-treatment';
+  // Toggle highlight
+  const already = el.classList.contains('mx-active');
+  svg.querySelectorAll('.mx-node').forEach(n => n.classList.remove('mx-active','mx-dim'));
+  svg.querySelectorAll('.mx-line').forEach(l => { l.style.opacity='0.55'; l.style.strokeWidth='2'; });
+  if (already) return;
+  el.classList.add('mx-active');
+  svg.querySelectorAll('.mx-node').forEach(n => { if (n !== el) n.classList.add('mx-dim'); });
+  svg.querySelectorAll('.mx-line').forEach(l => {
+    if (l.getAttribute(attr) === key) {
+      l.style.opacity = '0.9';
+      l.style.strokeWidth = '3';
+      // un-dim the connected node
+      const otherKey = type === 'concern' ? l.dataset.treatment : l.dataset.concern;
+      const otherAttr = type === 'concern' ? 'data-treatment' : 'data-concern';
+      svg.querySelectorAll(`.mx-node[data-node="${type==='concern'?'treatment':'concern'}"]`).forEach(n => {
+        if (n.dataset.key === otherKey) n.classList.remove('mx-dim');
+      });
+    } else {
+      l.style.opacity = '0.08';
+    }
+  });
+}
+
+function mxLineHover(el, evt) {
+  const tip = document.getElementById('mx-tooltip');
+  if (!tip) return;
+  const role = el.dataset.role || '';
+  const note = el.getAttribute('data-note') || '';
+  const concern = (CONCERN_AREAS.find(a => a.key === el.dataset.concern)||{}).label || el.dataset.concern;
+  const treatment = el.dataset.treatment;
+  tip.innerHTML = `<strong>${treatment}</strong> → ${concern}<br><span style="color:var(--gold);text-transform:capitalize">${role}</span>${note ? `<br><span style="color:var(--mu)">${note}</span>` : ''}`;
+  tip.style.display = 'block';
+  tip.style.left = (evt.clientX + 14) + 'px';
+  tip.style.top  = (evt.clientY - 10) + 'px';
+}
+function mxLineOut() {
+  const tip = document.getElementById('mx-tooltip');
+  if (tip) tip.style.display = 'none';
 }
 
 // ─── MEMBERSHIPS ──────────────────────────────────────
@@ -881,10 +1230,15 @@ let ET = null; // {data:{...}, idx:number}
 function openTreatmentModal(idx) {
   const isNew = idx < 0;
   const data = isNew
-    ? {name:'',category:'',description:'',pricing:'',price_items:[],packages:[],sessions:'',downtime:''}
+    ? {name:'',category:'',description:'',pricing:'',price_items:[],packages:[],sessions:'',downtime:'',protocols:[],pre_procedure:'',post_procedure:'',skincare_goals:'',matrix_entries:[]}
     : JSON.parse(JSON.stringify(db.treatments[idx]));
   if (!Array.isArray(data.price_items)) data.price_items = [];
   if (!Array.isArray(data.packages)) data.packages = [];
+  if (!Array.isArray(data.protocols)) data.protocols = [];
+  if (!data.pre_procedure) data.pre_procedure = '';
+  if (!data.post_procedure) data.post_procedure = '';
+  if (!data.skincare_goals) data.skincare_goals = '';
+  if (!Array.isArray(data.matrix_entries)) data.matrix_entries = [];
   ET = {data, idx};
   _renderTM();
 }
@@ -893,7 +1247,7 @@ function _syncTM() {
   if (!ET) return;
   const t = ET.data;
   // Basic fields
-  ['name','category','description','sessions','downtime'].forEach(k=>{
+  ['name','category','description','sessions','downtime','pre_procedure','post_procedure','skincare_goals'].forEach(k=>{
     const el = document.getElementById('mf_'+k); if (el) t[k] = el.value;
   });
   // Price row fields
@@ -913,6 +1267,20 @@ function _syncTM() {
     if (lbl) p.label = lbl.value;
     if (ses) p.sessions = ses.value;
     if (tot) p.total = tot.value;
+  });
+  // Matrix entries
+  const mxRows = document.querySelectorAll('[data-mx-i]');
+  t.matrix_entries = [];
+  mxRows.forEach(row => {
+    const i = row.dataset.mxI;
+    const cEl = document.querySelector(`[data-mx="${i}"][data-mxf="concern"]`);
+    const cusEl = document.querySelector(`[data-mx="${i}"][data-mxf="custom"]`);
+    const rEl = document.querySelector(`[data-mx="${i}"][data-mxf="role"]`);
+    const nEl = document.querySelector(`[data-mx="${i}"][data-mxf="note"]`);
+    const concern = cEl ? (cEl.value === 'custom' ? (cusEl ? cusEl.value.trim() : '') : cEl.value) : '';
+    if (concern && concern !== 'custom') {
+      t.matrix_entries.push({ concern, role: rEl ? rEl.value : 'secondary', note: nEl ? nEl.value.trim() : '' });
+    }
   });
 }
 
@@ -973,7 +1341,9 @@ function _renderTM() {
             <div class="fg"><label class="flabel">Treatment / Device Name</label>
               <input class="finput" id="mf_name" value="${h(t.name)}" placeholder="e.g. VirtueRF"></div>
             <div class="fg"><label class="flabel">Category</label>
-              <input class="finput" id="mf_category" value="${h(t.category)}" placeholder="e.g. RF Microneedling, Laser"></div>
+              <select class="finput" id="mf_category">
+                ${TREATMENT_CATEGORIES.map(c=>`<option value="${c}" ${t.category===c?'selected':''}>${c}</option>`).join('')}
+              </select></div>
           </div>
           <div class="fg"><label class="flabel">Description</label>
             <textarea class="finput ftextarea" id="mf_description" rows="2" placeholder="Brief clinical description">${h(t.description)}</textarea></div>
@@ -1015,6 +1385,67 @@ function _renderTM() {
               <input class="finput" id="mf_downtime" value="${h(t.downtime)}" placeholder="e.g. 24–48h redness / Zero"></div>
           </div>
 
+          <!-- ── PROTOCOL ATTACHMENTS ── -->
+          <div class="pe-wrap" style="margin-top:4px">
+            <div class="pe-section-hdr">
+              <span class="pe-section-label">📎 Attached Protocols</span>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-sec btn-sm" onclick="_addProtocolURL()">+ URL</button>
+                <label class="btn btn-sec btn-sm" style="cursor:pointer;margin:0">
+                  📤 Upload
+                  <input type="file" accept=".pdf,.doc,.docx,.txt,.png,.jpg" style="display:none" onchange="handleProtocolUpload(this)">
+                </label>
+              </div>
+            </div>
+            <div id="proto-list" style="min-height:32px;padding:6px 0">${_renderProtocolList(t.protocols||[])}</div>
+          </div>
+          <!-- ── /PROTOCOL ATTACHMENTS ── -->
+
+          <!-- ── CLINICAL CARE FIELDS ── -->
+          <div class="pe-wrap" style="margin-top:4px">
+            <div class="pe-section-hdr">
+              <span class="pe-section-label">🩺 Pre-Procedure Instructions</span>
+            </div>
+            <div style="font-size:11px;color:var(--mu);margin-bottom:8px">What should patients do (or avoid) before this treatment? e.g. avoid retinol 5 days prior, no sun exposure, arrive with clean skin.</div>
+            <textarea class="finput ftextarea" id="mf_pre_procedure" rows="3" placeholder="e.g. Avoid retinol/AHAs 5 days prior. No active sun exposure 2 weeks before. Arrive with clean skin, no makeup. Avoid blood thinners if possible.">${h(t.pre_procedure||'')}</textarea>
+          </div>
+
+          <div class="pe-wrap" style="margin-top:4px">
+            <div class="pe-section-hdr">
+              <span class="pe-section-label">🌿 Post-Procedure Instructions</span>
+            </div>
+            <div style="font-size:11px;color:var(--mu);margin-bottom:8px">Recovery steps, what to avoid, and when to resume normal skincare. Referenced by the AI when building patient roadmaps.</div>
+            <textarea class="finput ftextarea" id="mf_post_procedure" rows="3" placeholder="e.g. Avoid actives (retinol, AHAs, vitamin C) for 5–7 days. SPF 50 daily. No heat/sauna/exercise 24–48h. Gentle cleanser only until re-epithelialization.">${h(t.post_procedure||'')}</textarea>
+          </div>
+
+          <div class="pe-wrap" style="margin-top:4px">
+            <div class="pe-section-hdr">
+              <span class="pe-section-label">🎯 Skincare Goals & Home Care Pairing</span>
+            </div>
+            <div style="font-size:11px;color:var(--mu);margin-bottom:8px">What outcomes does this treatment target? What home care supports and extends results? The AI uses this to build the HOME CARE section of patient roadmaps.</div>
+            <textarea class="finput ftextarea" id="mf_skincare_goals" rows="3" placeholder="e.g. Goals: collagen remodeling, skin tightening, pore refinement. Pair with: growth factor serum (post-tx), SPF 50 daily, hyaluronic acid for hydration support. Avoid: exfoliating acids during recovery.">${h(t.skincare_goals||'')}</textarea>
+          </div>
+          <!-- ── /CLINICAL CARE FIELDS ── -->
+
+          <!-- ── DECISION MATRIX ── -->
+          <div class="pe-wrap" style="margin-top:4px">
+            <div class="pe-section-hdr">
+              <span class="pe-section-label">🗺️ Decision Matrix — Which concerns trigger this treatment?</span>
+              <button class="btn btn-sec btn-sm" onclick="_addMatrixRow()">+ Add Concern</button>
+            </div>
+            <div style="font-size:11px;color:var(--mu);margin-bottom:10px;line-height:1.6">
+              Map this treatment to the patient concerns where the AI should proactively include it in a plan. Role: <strong>Primary</strong> = lead recommendation · <strong>Secondary</strong> = add-on · <strong>Supporting</strong> = minor adjunct. These entries update the Decision Matrix automatically when you push to the agent.
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 110px 1fr 32px;gap:6px;margin-bottom:6px;padding:0 2px">
+              <div style="font-size:11px;color:var(--mu);font-weight:600">Concern Area</div>
+              <div style="font-size:11px;color:var(--mu);font-weight:600">Role</div>
+              <div style="font-size:11px;color:var(--mu);font-weight:600">Note (optional)</div>
+              <div></div>
+            </div>
+            <div id="mx-rows" style="min-height:36px">${_renderMatrixRows((ET&&ET.data.matrix_entries)||[])}</div>
+          </div>
+          <!-- ── /DECISION MATRIX ── -->
+
         </div>
         <div class="modal-footer">
           <button class="btn btn-sec" onclick="closeMod()">Cancel</button>
@@ -1022,6 +1453,85 @@ function _renderTM() {
         </div>
       </div>
     </div>`;
+}
+
+function _renderMatrixRows(entries) {
+  if (!entries.length) return `<div class="pe-empty" style="padding:10px 0">No concerns mapped yet — click + Add Concern to wire this treatment into patient plans</div>`;
+  return entries.map((e, i) => {
+    const knownKey = CONCERN_AREAS.some(a => a.key === e.concern && a.key !== 'custom');
+    const selectVal = knownKey ? e.concern : 'custom';
+    const customVal = knownKey ? '' : (e.concern || '');
+    return `<div data-mx-i="${i}" style="display:grid;grid-template-columns:1fr 110px 1fr 32px;gap:6px;align-items:start;margin-bottom:6px">
+      <div>
+        <select class="finput pe-inp pe-inp-sel" data-mx="${i}" data-mxf="concern" style="width:100%" onchange="var c=document.querySelector('[data-mx=\\'${i}\\'][data-mxf=\\'custom\\']');if(c)c.style.display=this.value==='custom'?'block':'none'">
+          ${CONCERN_AREAS.map(a=>`<option value="${a.key}" ${selectVal===a.key?'selected':''}>${a.label}</option>`).join('')}
+        </select>
+        <input class="finput pe-inp" data-mx="${i}" data-mxf="custom" value="${h(customVal)}" placeholder="concern_key_snake_case" style="width:100%;margin-top:4px;display:${selectVal==='custom'?'block':'none'}">
+      </div>
+      <select class="finput pe-inp pe-inp-sel" data-mx="${i}" data-mxf="role" style="width:100%">
+        <option value="primary" ${e.role==='primary'?'selected':''}>Primary</option>
+        <option value="secondary" ${(!e.role||e.role==='secondary')?'selected':''}>Secondary</option>
+        <option value="supporting" ${e.role==='supporting'?'selected':''}>Supporting</option>
+      </select>
+      <input class="finput pe-inp" data-mx="${i}" data-mxf="note" value="${h(e.note||'')}" placeholder="e.g. relaxes orbicularis oculi" style="width:100%">
+      <button class="btn btn-del btn-sm" onclick="_syncTM();ET.data.matrix_entries.splice(${i},1);document.getElementById('mx-rows').innerHTML=_renderMatrixRows(ET.data.matrix_entries)" style="padding:4px 8px;margin-top:1px">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function _addMatrixRow() {
+  _syncTM();
+  if (!ET.data.matrix_entries) ET.data.matrix_entries = [];
+  ET.data.matrix_entries.push({ concern: '', role: 'secondary', note: '' });
+  document.getElementById('mx-rows').innerHTML = _renderMatrixRows(ET.data.matrix_entries);
+}
+
+function _renderProtocolList(protocols) {
+  if (!protocols || !protocols.length) return '<div style="font-size:11px;color:var(--mu);padding:4px 0">No protocols attached — upload a PDF or paste a URL</div>';
+  return protocols.map((p,i) => `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px">
+    <a href="${h(p.url)}" target="_blank" style="color:var(--dm);text-decoration:underline;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${h(p.name)}">${h(p.name)}</a>
+    <button class="btn btn-del btn-sm" onclick="_removeProtocol(${i})" style="padding:2px 7px;flex-shrink:0">✕</button>
+  </div>`).join('');
+}
+
+function _removeProtocol(i) {
+  if (!ET) return;
+  _syncTM();
+  if (!ET.data.protocols) ET.data.protocols = [];
+  ET.data.protocols.splice(i, 1);
+  document.getElementById('proto-list').innerHTML = _renderProtocolList(ET.data.protocols);
+}
+
+function _addProtocolURL() {
+  const url = prompt('Paste the protocol URL (Google Drive, Dropbox, web link etc.):');
+  if (!url) return;
+  const name = prompt('Label for this attachment:', url.split('/').pop() || 'Protocol');
+  if (!name) return;
+  if (!ET) return;
+  _syncTM();
+  if (!ET.data.protocols) ET.data.protocols = [];
+  ET.data.protocols.push({ name, url });
+  document.getElementById('proto-list').innerHTML = _renderProtocolList(ET.data.protocols);
+}
+
+function handleProtocolUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 3 * 1024 * 1024) {
+    alert('File is larger than 3MB. For large files, upload to Google Drive or Dropbox and paste the link using "+ URL" instead.');
+    input.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    if (!ET) return;
+    _syncTM();
+    if (!ET.data.protocols) ET.data.protocols = [];
+    ET.data.protocols.push({ name: file.name, url: reader.result });
+    document.getElementById('proto-list').innerHTML = _renderProtocolList(ET.data.protocols);
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
 }
 
 function saveTreatmentModal(idx) {
@@ -1041,11 +1551,12 @@ function saveTreatmentModal(idx) {
 // ══════════════════════════════════════════════════════
 // NEW TREATMENT TYPE MODAL
 // ══════════════════════════════════════════════════════
-function openNewTreatmentTypeModal() {
+function openNewTreatmentCategoryModal() {
+  NTT_MX = [];
   document.getElementById('mc').innerHTML = `
     <div class="overlay" onclick="if(event.target===this)closeMod()">
       <div class="modal modal-wide">
-        <div class="modal-title">✦ New Treatment Type</div>
+        <div class="modal-title">✦ New Treatment Category</div>
         <div class="modal-fields">
 
           <div style="background:rgba(201,169,74,0.07);border:1px solid rgba(201,169,74,0.2);border-radius:8px;padding:14px 16px;margin-bottom:18px;font-size:12px;color:var(--mu);line-height:1.6">
@@ -1057,7 +1568,9 @@ function openNewTreatmentTypeModal() {
             <div class="fg"><label class="flabel">Treatment Name *</label>
               <input class="fi" id="ntt-name" placeholder="e.g. Dysport, HydraFacial, IV Glutathione"></div>
             <div class="fg"><label class="flabel">Category *</label>
-              <input class="fi" id="ntt-cat" placeholder="e.g. Neurotoxin, Body, Wellness"></div>
+              <select class="fi" id="ntt-cat">
+                ${TREATMENT_CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('')}
+              </select></div>
           </div>
 
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
@@ -1079,6 +1592,21 @@ function openNewTreatmentTypeModal() {
             <textarea class="fi" id="ntt-desc" rows="3" placeholder="What does this treatment do? What conditions does it address? What is the mechanism?"></textarea>
           </div>
 
+          <div style="border:1px solid rgba(91,141,217,0.25);border-radius:8px;padding:14px;background:rgba(91,141,217,0.04);margin-bottom:14px">
+            <label class="flabel" style="color:var(--dt)">🗺️ Decision Matrix — Which concerns trigger this treatment?</label>
+            <div style="font-size:11px;color:var(--mu);margin-bottom:10px;line-height:1.6">
+              Map this treatment to patient concerns so the AI proactively includes it in plans. <strong>Primary</strong> = lead recommendation · <strong>Secondary</strong> = add-on · <strong>Supporting</strong> = minor adjunct.
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 110px 1fr 32px;gap:6px;margin-bottom:8px;padding:0 2px">
+              <div style="font-size:11px;color:var(--mu);font-weight:600">Concern Area</div>
+              <div style="font-size:11px;color:var(--mu);font-weight:600">Role</div>
+              <div style="font-size:11px;color:var(--mu);font-weight:600">Note (optional)</div>
+              <div></div>
+            </div>
+            <div id="ntt-mx-rows"><div class="pe-empty" style="padding:8px 0">Click + Add Concern to map this treatment to patient concerns</div></div>
+            <button class="btn btn-sec btn-sm" style="margin-top:8px" onclick="_nttAddMxRow()">+ Add Concern</button>
+          </div>
+
           <div class="fg" style="border:1px solid rgba(201,169,74,0.3);border-radius:8px;padding:14px;background:rgba(201,169,74,0.04)">
             <label class="flabel" style="color:var(--dm)">⚡ Agent Recommendation Logic</label>
             <div style="font-size:11px;color:var(--mu);margin-bottom:8px;line-height:1.6">
@@ -1092,13 +1620,56 @@ function openNewTreatmentTypeModal() {
         </div>
         <div class="modal-footer">
           <button class="btn btn-sec" onclick="closeMod()">Cancel</button>
-          <button class="btn btn-gold" onclick="saveNewTreatmentType()">Add Treatment Type</button>
+          <button class="btn btn-gold" onclick="saveNewTreatmentCategory()">Add Treatment Type</button>
         </div>
       </div>
     </div>`;
 }
 
-function saveNewTreatmentType() {
+function _nttRenderMxRows() {
+  const el = document.getElementById('ntt-mx-rows');
+  if (!el) return;
+  if (!NTT_MX.length) { el.innerHTML = `<div class="pe-empty" style="padding:8px 0">Click + Add Concern to map this treatment to patient concerns</div>`; return; }
+  el.innerHTML = NTT_MX.map((e,i) => {
+    const knownKey = CONCERN_AREAS.some(a => a.key === e.concern && a.key !== 'custom');
+    const selectVal = knownKey ? e.concern : 'custom';
+    const customVal = knownKey ? '' : (e.concern || '');
+    return `<div style="display:grid;grid-template-columns:1fr 110px 1fr 32px;gap:6px;align-items:start;margin-bottom:6px">
+      <div>
+        <select class="finput pe-inp pe-inp-sel" id="ntt-mx-c-${i}" style="width:100%" onchange="var c=document.getElementById('ntt-mx-cc-${i}');if(c)c.style.display=this.value==='custom'?'block':'none'">
+          ${CONCERN_AREAS.map(a=>`<option value="${a.key}" ${selectVal===a.key?'selected':''}>${a.label}</option>`).join('')}
+        </select>
+        <input class="finput pe-inp" id="ntt-mx-cc-${i}" value="${h(customVal)}" placeholder="concern_key_snake_case" style="width:100%;margin-top:4px;display:${selectVal==='custom'?'block':'none'}">
+      </div>
+      <select class="finput pe-inp pe-inp-sel" id="ntt-mx-r-${i}" style="width:100%">
+        <option value="primary" ${e.role==='primary'?'selected':''}>Primary</option>
+        <option value="secondary" ${(!e.role||e.role==='secondary')?'selected':''}>Secondary</option>
+        <option value="supporting" ${e.role==='supporting'?'selected':''}>Supporting</option>
+      </select>
+      <input class="finput pe-inp" id="ntt-mx-n-${i}" value="${h(e.note||'')}" placeholder="Optional note" style="width:100%">
+      <button class="btn btn-del btn-sm" onclick="NTT_MX.splice(${i},1);_nttRenderMxRows()" style="padding:4px 8px;margin-top:1px">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function _nttSyncMx() {
+  NTT_MX = NTT_MX.map((e,i) => {
+    const cEl = document.getElementById(`ntt-mx-c-${i}`);
+    const ccEl = document.getElementById(`ntt-mx-cc-${i}`);
+    const rEl = document.getElementById(`ntt-mx-r-${i}`);
+    const nEl = document.getElementById(`ntt-mx-n-${i}`);
+    const concern = cEl ? (cEl.value === 'custom' ? (ccEl?.value?.trim()||'') : cEl.value) : e.concern;
+    return { concern, role: rEl?.value||'secondary', note: nEl?.value?.trim()||'' };
+  }).filter(e => e.concern && e.concern !== 'custom');
+}
+
+function _nttAddMxRow() {
+  _nttSyncMx();
+  NTT_MX.push({ concern: '', role: 'secondary', note: '' });
+  _nttRenderMxRows();
+}
+
+function saveNewTreatmentCategory() {
   const name     = document.getElementById('ntt-name').value.trim();
   const category = document.getElementById('ntt-cat').value.trim();
   const by       = document.getElementById('ntt-by').value.trim();
@@ -1107,6 +1678,8 @@ function saveNewTreatmentType() {
   const downtime = document.getElementById('ntt-downtime').value.trim();
   const desc     = document.getElementById('ntt-desc').value.trim();
   const rule     = document.getElementById('ntt-rule').value.trim();
+  _nttSyncMx();
+  const matrixEntries = NTT_MX.filter(e => e.concern);
 
   if (!name) { alert('Treatment name is required.'); return; }
 
@@ -1117,7 +1690,8 @@ function saveNewTreatmentType() {
     pricing: price,
     sessions, downtime,
     price_items: [], packages: [],
-    recommendation_rule: rule || null
+    recommendation_rule: rule || null,
+    matrix_entries: matrixEntries
   });
 
   // Add to recommendation rules registry (feeds agent decision logic)
@@ -1397,7 +1971,29 @@ function buildMergedKB(currentKB) {
         ...(t.packages && t.packages.length ? {packages: t.packages} : {}),
         sessions: t.sessions || '',
         downtime: t.downtime || '',
+        ...(t.pre_procedure  ? {pre_procedure:  t.pre_procedure}  : {}),
+        ...(t.post_procedure ? {post_procedure: t.post_procedure} : {}),
+        ...(t.skincare_goals ? {skincare_goals: t.skincare_goals} : {}),
+        ...(t.protocols && t.protocols.length ? {protocols: t.protocols} : {}),
       }));
+  }
+
+  // ── Device relevance matrix — merge from treatment matrix_entries ─────────
+  const matrixTreatments = db.treatments.filter(t => t.name && t.matrix_entries && t.matrix_entries.length > 0);
+  if (matrixTreatments.length > 0) {
+    if (!kb.device_relevance_matrix) kb.device_relevance_matrix = {};
+    for (const t of matrixTreatments) {
+      for (const entry of t.matrix_entries) {
+        const concern = (entry.concern || '').trim();
+        if (!concern) continue;
+        if (!kb.device_relevance_matrix[concern]) kb.device_relevance_matrix[concern] = [];
+        const existing = kb.device_relevance_matrix[concern];
+        const idx = existing.findIndex(e => e.device === t.name);
+        const newEntry = { device: t.name, role: entry.role || 'secondary', ...(entry.note ? {note: entry.note} : {}) };
+        if (idx >= 0) existing[idx] = newEntry;
+        else existing.push(newEntry);
+      }
+    }
   }
 
   // ── Skincare catalog ──────────────────────────────────────────────────────
@@ -1513,7 +2109,7 @@ async function doPush() {
 document.getElementById('fileIn').addEventListener('change', function(e) {
   const f = e.target.files[0]; if (!f) return;
   const r = new FileReader();
-  r.onload = ev => { importCSV(ev.target.result); e.target.value=''; };
+  r.onload = ev => { importCSV(ev.target.result); e.target.value=''; }; // importCSV shows dialog when no mode given
   r.readAsText(f);
 });
 
